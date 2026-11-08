@@ -1,12 +1,12 @@
-import { Skeleton, Switch } from '@heroui/react'
+import { Button, Skeleton, Switch } from '@heroui/react'
 import { useState } from 'react'
-import useStore from '../store/useStore'
+import useStore from '../../store/useStore'
 import { Moon, Sun } from 'lucide-react';
 import { Link } from 'react-router';
 
 function NavBar() {
     const [logoLoaded, setLogoLoaded] = useState(true)
-    const { darkMode, setDarkMode, setTriggerCurtain } = useStore()
+    const { darkMode, setDarkMode, setTriggerCurtain, setIsOpen, mode, setMode } = useStore()
 
     const handleThemeToggle = (isSelected) => {
         setTriggerCurtain(true)
@@ -53,10 +53,22 @@ function NavBar() {
                     ))}
                     <ul className='flex gap-2'>
                         <li>
-                            <Link href="/" className='px-3 py-2 flex rounded-md text-sm font-medium hover:text-accent hover:scale-105 transition-all duration-150'>Inicia ya!</Link>
+                            <Button
+                                className='px-3 py-2 flex rounded-md text-sm font-medium hover:bg-transparent hover:text-accent hover:scale-105 transition-all duration-150'
+                                variant='ghost'
+                                onPress={()=>[setIsOpen(true), setMode('login')]}
+                            >
+                                Inicia ya!
+                            </Button>
                         </li>
                         <li>
-                            <Link href="/" className='px-3 py-2 flex rounded-md text-sm font-medium hover:text-accent hover:scale-105 transition-all duration-150'>No tienes cuenta?</Link>
+                            <Button
+                                className='px-3 py-2 flex rounded-md text-sm font-medium hover:bg-transparent hover:text-accent hover:scale-105 transition-all duration-150'
+                                variant='ghost'
+                                onPress={()=>[setIsOpen(true), setMode('register')]}
+                            >
+                                No tienes cuenta?
+                            </Button>
                         </li>
                     </ul>
                 </div>

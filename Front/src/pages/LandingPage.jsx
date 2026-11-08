@@ -4,7 +4,7 @@ import ManageCard from "../components/landing/ManageCard";
 import menu from "../assets/menu.jpg";
 import pedidos from "../assets/pedidos.png";
 import ventas from "../assets/ventas.png";
-import ScrollIndicator from "../components/ScrollIndicator";
+import ScrollIndicator from "../components/globals/ScrollIndicator";
 
 
 function LandingPage() {
