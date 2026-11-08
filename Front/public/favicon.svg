@@ -13,7 +13,8 @@
     }
   </style>
 
-  
+  <!-- Moss-green background -->
+  <rect width="512" height="512" fill="#78866B" rx="100" />
 
   <!-- Decorative accent -->
   <circle cx="256" cy="256" r="166"

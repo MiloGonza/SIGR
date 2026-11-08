@@ -51,18 +51,35 @@ function LandingPage() {
                         style={{ fontFamily: "'Advercase', serif" }}>
                         Como funciona
                     </h3>
-                    <div>
-                        <p>
-                            Lorem ipsum dolor sit amet consectetur adipisicing elit. Natus, animi fuga saepe quibusdam autem ex nisi alias iure iusto impedit aut esse, enim veniam temporibus. Earum suscipit tempore nam molestias!
-                            Illum, ipsum voluptas commodi laudantium dolorum sed animi perspiciatis. Doloribus, voluptatibus ex quam corrupti quod delectus placeat velit, vitae quas architecto officiis, culpa sed neque quo odio maxime minima cumque.
-                            Natus vero dicta magni voluptatem accusantium eius fugiat neque, rem veniam iure doloribus saepe corrupti temporibus beatae sint id eum ad maxime! Odit in laboriosam magnam iusto maxime et voluptate?
-                            Ex omnis sit architecto mollitia, labore nulla perferendis, repudiandae nobis velit ad facere! Iusto exercitationem commodi itaque ducimus ipsam in corrupti perspiciatis doloremque voluptatem, deserunt laborum labore, architecto minus praesentium.
-                            Suscipit nam illo distinctio optio voluptatibus odit iure nemo, aut cum voluptates ipsa, vero fugiat inventore earum quod, facilis velit amet quae nisi accusantium. Minus fugiat quis nulla quae maxime!
-                        </p>
+                    <div className="flex gap-6 flex-col">
+                        <div>
+                            <h4 className="text-2xl font-bold">
+                                1. Organiza tu restaurante
+                            </h4>
+                            <p>
+                                Configura tu restaurante desde un solo lugar. Crea categorías, registra tus platos, actualiza precios y administra la disponibilidad de cada producto. También puedes gestionar los usuarios de tu equipo y asignarles las herramientas necesarias para facilitar el trabajo diario.
+                            </p>
+                        </div>
+                        <div>
+                            <h4 className="text-2xl font-bold">
+                                2. Gestiona el servicio
+                            </h4>
+                            <p>
+                                Mantén todos tus pedidos organizados y supervisa su estado durante cada etapa de la atención. Registra nuevas solicitudes, consulta los pedidos pendientes y controla cuáles están en preparación o listos para entregar. Así tendrás una visión más clara del funcionamiento de tu restaurante y evitarás 
+                            </p>
+                        </div>
+                        <div>
+                            <h4 className="text-2xl font-bold">
+                                3. Revisa tus resultados
+                            </h4>
+                            <p>
+                                Lleva un seguimiento de la actividad comercial de tu restaurante. Consulta las ventas realizadas, revisa los ingresos del día y administra los movimientos de caja para mantener un registro organizado de tus operaciones. Utiliza esta información para conocer el rendimiento de tu negocio y tomar decisiones con mayor claridad.
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
-            <div className="bg-background-inverse h-100 w-full flex items-center justify-center gap-80">
+            <div className="bg-background-inverse min-h-100 w-full flex flex-wrap items-center justify-evenly p-10 ">
                 <div className="gap-10 flex flex-col items-center justify-center">
                     <img src="/favicon.svg" alt="" className="h-80 w-80" />
                     <span className="text-background">© 2026 Punto y Sazón</span>
