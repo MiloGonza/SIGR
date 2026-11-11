@@ -7,6 +7,7 @@ import { useForm, Controller } from "react-hook-form"
 import { useNavigate } from "react-router"
 import useStore from "../../store/useStore"
 import { createUser, getApiErrorMessage, loginUser } from "../../Api/LoginRegisterApi"
+import { getDefaultWorkspacePath } from "../../config/sidebarNav"
 
 const rols = [
   { id: "cliente", name: "Cliente" },
@@ -108,7 +109,7 @@ function LoginRegisterModal({ isOpen, setIsOpen, mode, setMode }) {
       restaurante: auth.restaurante,
     })
     setIsOpen(false)
-    navigate(auth.rol === "cliente" ? "/home" : "/dashboard")
+    navigate(getDefaultWorkspacePath(auth.rol))
   }
 
   const handleLoginSubmit = async (data) => {

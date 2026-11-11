@@ -1,13 +1,25 @@
-import { Routes, Route, useLocation } from 'react-router'
+import { Routes, Route, Navigate, useLocation } from 'react-router'
 import { motion, AnimatePresence } from 'motion/react'
 import { useState, useEffect } from 'react'
 import NavBar from './components/globals/NavBar'
+import SideBar from './components/globals/SideBar'
 import useStore from './store/useStore'
 import LandingPage from './pages/landingPage/LandingPage'
 import LoginRegisterModal from './components/loginRegister/LoginRegisterModal'
-import { lazy, Suspense } from 'react'
-
-const LazyHome = lazy(() => import('./pages/home/Home'))
+import Home from './pages/home/Home'
+import Shops from './pages/home/Shops'
+import Cars from './pages/home/Cars'
+import Payments from './pages/home/Payments'
+import Addresses from './pages/home/Addresses'
+import ClientOrders from './pages/home/Orders'
+import ClientHistory from './pages/home/History'
+import Stats from './pages/dashboard/admin/Stats'
+import Emplpoys from './pages/dashboard/admin/Emplpoys'
+import Recipes from './pages/dashboard/admin/Recipes'
+import EmployOrders from './pages/dashboard/employ/Orders'
+import Schedule from './pages/dashboard/employ/Schedule'
+import Stock from './pages/dashboard/employ/Stock'
+import { SIDEBAR_WIDTH, getDefaultWorkspacePath, isWorkspacePath } from './config/sidebarNav'
 
 const COVER_MS = 400
 const TRANSITION_MS = 800
@@ -39,6 +51,12 @@ const Page = ({ children }) => (
 	</motion.div>
 )
 
+// /dashboard lleva a la primera pestaña del rol que tenga la sesión.
+function DashboardHome() {
+	const { user } = useStore()
+	return <Navigate to={getDefaultWorkspacePath(user?.rol)} replace />
+}
+
 function App() {
 	const location = useLocation()
 	// La cortina arranca visible y el contenido oculto: la primera carga no
@@ -49,7 +67,14 @@ function App() {
 	// que la cortina cubre la pantalla: así la página no desaparece.
 	const [displayLocation, setDisplayLocation] = useState(location)
 	const [lastPath, setLastPath] = useState(location.pathname)
-	const { darkMode, triggerCurtain, setTriggerCurtain, isOpen, setIsOpen, mode, setMode } = useStore()
+	const { user, darkMode, triggerCurtain, setTriggerCurtain, isOpen, setIsOpen, mode, setMode } = useStore()
+
+	// Mantiene al usuario visible mientras la cortina tapa la pantalla al cerrar
+	// sesión; así la barra lateral no desaparece antes de tiempo.
+	const [sidebarUser, setSidebarUser] = useState(user)
+	if (user && user !== sidebarUser) setSidebarUser(user)
+	if (!user && !isWorkspacePath(displayLocation.pathname) && sidebarUser) setSidebarUser(null)
+	const showSideBar = isWorkspacePath(displayLocation.pathname) && Boolean(sidebarUser)
 
 	// Al cambiar de ruta levantamos la cortina en el mismo render, antes de
 	// pintar, pero sin ocultar la página anterior.
@@ -89,8 +114,6 @@ function App() {
 		}
 	}, [location])
 
-	console.log('isopen:', isOpen, 'mode:', mode) // Debugging line to check the values of isopen and mode
-
 	return (
 		<div className="App" style={{ width: '100%', maxWidth: '100vw', minHeight: '100vh', overflowX: 'clip', overflowY: 'hidden' }}>
 			<AnimatePresence>
@@ -101,27 +124,86 @@ function App() {
 				transition={{ duration: contentVisible ? 0.15 : 0 }}
 				style={{ pointerEvents: contentVisible ? 'auto' : 'none' }}
 			>
-				<NavBar />
 				<LoginRegisterModal isOpen={isOpen} setIsOpen={setIsOpen} mode={mode} setMode={setMode} />
-				<Routes location={displayLocation}>
-					<Route path="/" element={
-						<Page>
-							<LandingPage />
-						</Page>
-					} />
-					<Route path="/dashboard" element={
-						<Page>
-							<h1 style={{ textAlign: 'center' }}>Dashboard</h1>
-						</Page>
-					} />
-					<Route path="/home" element={
-						<Page>
-							<Suspense>
-								<LazyHome />
-							</Suspense>
-						</Page>
-					} />
-				</Routes>
+				{showSideBar ? <SideBar user={sidebarUser} activePath={displayLocation.pathname} /> : <NavBar />}
+				<div
+					className="min-h-dvh"
+					style={{ paddingLeft: showSideBar ? SIDEBAR_WIDTH.collapsed : 0 }}
+				>
+					<Routes location={displayLocation}>
+						<Route path="/" element={
+							<Page>
+								<LandingPage />
+							</Page>
+						} />
+						<Route path="/home" element={
+							<Page>
+								<Home />
+							</Page>
+						} />
+						<Route path="/home/tiendas" element={
+							<Page>
+								<Shops />
+							</Page>
+						} />
+						<Route path="/home/carrito" element={
+							<Page>
+								<Cars />
+							</Page>
+						} />
+						<Route path="/home/metodos-pago" element={
+							<Page>
+								<Payments />
+							</Page>
+						} />
+						<Route path="/home/direcciones" element={
+							<Page>
+								<Addresses />
+							</Page>
+						} />
+						<Route path="/home/pedidos" element={
+							<Page>
+								<ClientOrders />
+							</Page>
+						} />
+						<Route path="/home/historial" element={
+							<Page>
+								<ClientHistory />
+							</Page>
+						} />
+						<Route path="/dashboard" element={<DashboardHome />} />
+						<Route path="/dashboard/resumen" element={
+							<Page>
+								<Stats />
+							</Page>
+						} />
+						<Route path="/dashboard/empleados" element={
+							<Page>
+								<Emplpoys />
+							</Page>
+						} />
+						<Route path="/dashboard/recetas" element={
+							<Page>
+								<Recipes />
+							</Page>
+						} />
+						<Route path="/dashboard/pedidos" element={
+							<Page>
+								<EmployOrders />
+							</Page>
+						} />
+						<Route path="/dashboard/turnos" element={
+							<Page>
+								<Schedule />
+							</Page>
+						} />
+						<Route path="/dashboard/disponibilidad" element={
+							<Page>
+								<Stock />
+							</Page>
+						} />
+					</Routes>
+				</div>
 			</motion.div>
 		</div>
 	)
