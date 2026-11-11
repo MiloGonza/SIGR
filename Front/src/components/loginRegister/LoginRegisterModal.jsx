@@ -15,13 +15,25 @@ const ADMIN_ROLE = "administrador"
 const WAITER_ROLE = "mesero"
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const USERNAME_PATTERN = /^[a-zA-Z0-9._-]+$/
 
 const loginDefaults = { email: "", password: "" }
-const registerDefaults = { rol: "", email: "", password: "", passwordConfirm: "", nombreLocal: "" }
+const registerDefaults = { rol: "", nombre: "", email: "", password: "", passwordConfirm: "", nombreLocal: "" }
 
 const emailRules = {
   required: "Correo es obligatorio",
   pattern: { value: EMAIL_PATTERN, message: "Correo inválido" },
+}
+
+const nombreRules = {
+  required: "El nombre de usuario es obligatorio",
+  minLength: { value: 3, message: "El nombre de usuario debe tener al menos 3 caracteres" },
+  maxLength: { value: 30, message: "El nombre de usuario no puede superar los 30 caracteres" },
+  validate: (value) => (value ?? "").trim().length > 0 || "El nombre de usuario no puede estar vacío",
+  pattern: {
+    value: USERNAME_PATTERN,
+    message: "Solo se permiten letras, números, puntos, guiones y guion bajo (sin espacios)",
+  },
 }
 
 const passwordRules = {
@@ -80,6 +92,7 @@ function LoginRegisterModal({ isOpen, setIsOpen, mode, setMode }) {
   // Enfocar el primer error según el orden visual del formulario
   const focusFirstRegisterError = (formErrors) => {
     const fieldOrder = ["rol"]
+    if (registerForm.getValues("rol") !== WAITER_ROLE) fieldOrder.push("nombre")
     if (registerForm.getValues("rol") === ADMIN_ROLE) fieldOrder.push("nombreLocal")
     fieldOrder.push("email", "password", "passwordConfirm")
 
@@ -266,7 +279,7 @@ function LoginRegisterModal({ isOpen, setIsOpen, mode, setMode }) {
                                       registerForm.clearErrors("nombreLocal")
                                     }
                                     if (nextRol === WAITER_ROLE) {
-                                      registerForm.clearErrors(["email", "password", "passwordConfirm", "nombreLocal"])
+                                      registerForm.clearErrors(["nombre", "email", "password", "passwordConfirm", "nombreLocal"])
                                     }
                                   }}
                                   onBlur={field.onBlur}
@@ -297,6 +310,18 @@ function LoginRegisterModal({ isOpen, setIsOpen, mode, setMode }) {
 
                           {selectedRolId === "administrador" ? (
                             <>
+                              <div className="flex flex-col gap-2 w-full">
+                                <label className="flex-1 font-bold text-lg text-background-inverse" htmlFor="nombre">Nombre de usuario</label>
+                                <Input
+                                  {...registerForm.register("nombre", nombreRules)}
+                                  type="text"
+                                  id="nombre"
+                                  autoComplete="username"
+                                  placeholder="Nombre de usuario"
+                                  className={registerErrors.nombre ? errorInputClass : ""}
+                                />
+                                {registerErrors.nombre && <span className="text-red-500 text-sm">{registerErrors.nombre.message}</span>}
+                              </div>
                               <div className="flex flex-col gap-2 w-full">
                                 <label className="flex-1 font-bold text-lg text-background-inverse" htmlFor="nombreLocal">Nombre del local</label>
                                 <Input
@@ -355,6 +380,18 @@ function LoginRegisterModal({ isOpen, setIsOpen, mode, setMode }) {
                             </div>
                           ) : (
                             <>
+                              <div className="flex flex-col gap-2 w-full">
+                                <label className="flex-1 font-bold text-lg text-background-inverse" htmlFor="nombre">Nombre de usuario</label>
+                                <Input
+                                  {...registerForm.register("nombre", nombreRules)}
+                                  type="text"
+                                  id="nombre"
+                                  autoComplete="username"
+                                  placeholder="Nombre de usuario"
+                                  className={registerErrors.nombre ? errorInputClass : ""}
+                                />
+                                {registerErrors.nombre && <span className="text-red-500 text-sm">{registerErrors.nombre.message}</span>}
+                              </div>
                               <div className="flex flex-col gap-2 w-full">
                                 <label className="flex-1 font-bold text-lg text-background-inverse" htmlFor="email">Correo</label>
                                 <Input
