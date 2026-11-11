@@ -4,6 +4,9 @@ import login from "../../assets/Login.jpg"
 import { motion, AnimatePresence } from 'motion/react'
 import { useRef, useEffect, useState } from "react"
 import { useForm, Controller } from "react-hook-form"
+import { useNavigate } from "react-router"
+import useStore from "../../store/useStore"
+import { createUser, getApiErrorMessage, loginUser } from "../../Api/LoginRegisterApi"
 
 const rols = [
   { id: "cliente", name: "Cliente" },
@@ -15,14 +18,25 @@ const ADMIN_ROLE = "administrador"
 const WAITER_ROLE = "mesero"
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const USERNAME_PATTERN = /^[a-zA-Z0-9._-]+$/
+const USERNAME_PATTERN = /^[a-zA-Z0-9._\- ]+$/
 
-const loginDefaults = { email: "", password: "" }
+const loginDefaults = { usuario: "", password: "" }
 const registerDefaults = { rol: "", nombre: "", email: "", password: "", passwordConfirm: "", nombreLocal: "" }
 
 const emailRules = {
   required: "Correo es obligatorio",
   pattern: { value: EMAIL_PATTERN, message: "Correo inválido" },
+}
+
+// El inicio de sesión acepta tanto el correo como el nombre de usuario.
+const loginIdentifierRules = {
+  required: "Correo o nombre de usuario es obligatorio",
+  validate: (value) => {
+    const identifier = (value ?? "").trim()
+    if (!identifier) return "Correo o nombre de usuario es obligatorio"
+    if (identifier.includes("@") && !EMAIL_PATTERN.test(identifier)) return "Correo inválido"
+    return true
+  },
 }
 
 const nombreRules = {
@@ -32,13 +46,13 @@ const nombreRules = {
   validate: (value) => (value ?? "").trim().length > 0 || "El nombre de usuario no puede estar vacío",
   pattern: {
     value: USERNAME_PATTERN,
-    message: "Solo se permiten letras, números, puntos, guiones y guion bajo (sin espacios)",
+    message: "Solo se permiten letras, números, espacios, puntos, guiones y guion bajo",
   },
 }
 
 const passwordRules = {
   required: "Contraseña es obligatoria",
-  minLength: { value: 6, message: "La contraseña debe tener al menos 6 caracteres" },
+  minLength: { value: 8, message: "La contraseña debe tener al menos 8 caracteres" },
 }
 
 const errorInputClass = "border-red-500 focus:border-red-500"
@@ -49,6 +63,10 @@ function LoginRegisterModal({ isOpen, setIsOpen, mode, setMode }) {
 
   // Rol seleccionado, sincronizado con el formulario desde el Controller.
   const [selectedRolId, setSelectedRolId] = useState("")
+  const [authError, setAuthError] = useState("")
+
+  const navigate = useNavigate()
+  const setUser = useStore((state) => state.setUser)
 
   const loginForm = useForm({
     defaultValues: loginDefaults,
@@ -76,14 +94,51 @@ function LoginRegisterModal({ isOpen, setIsOpen, mode, setMode }) {
     loginForm.reset(loginDefaults)
     registerForm.reset(registerDefaults)
     setSelectedRolId("")
+    setAuthError("")
   }, [mode, loginForm, registerForm])
 
-  const handleLoginSubmit = (data) => {
-    console.log("Login data:", data);
+  // Guarda la sesión y redirige según el rol que devuelve el backend.
+  const completeLogin = (auth) => {
+    localStorage.setItem("token", auth.token)
+    setUser({
+      id: auth.id,
+      username: auth.username,
+      email: auth.email,
+      rol: auth.rol,
+      restaurante: auth.restaurante,
+    })
+    setIsOpen(false)
+    navigate(auth.rol === "cliente" ? "/home" : "/dashboard")
   }
 
-  const handleRegisterSubmit = (data) => {
-    console.log("Register data:", data);
+  const handleLoginSubmit = async (data) => {
+    setAuthError("")
+    try {
+      const auth = await loginUser({ usuario: data.usuario.trim(), password: data.password })
+      completeLogin(auth)
+    } catch (error) {
+      setAuthError(getApiErrorMessage(error, "No se pudo iniciar sesión"))
+    }
+  }
+
+  const handleRegisterSubmit = async (data) => {
+    setAuthError("")
+    try {
+      const payload = {
+        username: data.nombre,
+        email: data.email,
+        password: data.password,
+        rol: data.rol,
+      }
+      if (data.rol === ADMIN_ROLE) payload["Nombre del local"] = data.nombreLocal
+
+      await createUser(payload)
+      // Iniciamos sesión automáticamente para aplicar la redirección por rol.
+      const auth = await loginUser({ email: data.email, password: data.password })
+      completeLogin(auth)
+    } catch (error) {
+      setAuthError(getApiErrorMessage(error, "No se pudo completar el registro"))
+    }
   }
 
   const switchToLogin = () => setMode("login")
@@ -221,14 +276,15 @@ function LoginRegisterModal({ isOpen, setIsOpen, mode, setMode }) {
                       {mode == "login" ? (
                         <form ref={loginFormRef} id="login-form" noValidate onSubmit={loginForm.handleSubmit(handleLoginSubmit)} className="flex flex-col gap-2 w-full Login h-80 justify-center">
                           <div className="flex flex-col gap-2 w-full">
-                            <label className="font-bold text-lg text-background-inverse" htmlFor="email">Correo</label>
+                            <label className="font-bold text-lg text-background-inverse" htmlFor="usuario">Correo o nombre de usuario</label>
                             <Input
-                              {...loginForm.register("email", emailRules)}
-                              type="email"
-                              id="email"
-                              className={loginErrors.email ? errorInputClass : ""}
+                              {...loginForm.register("usuario", loginIdentifierRules)}
+                              type="text"
+                              id="usuario"
+                              autoComplete="username"
+                              className={loginErrors.usuario ? errorInputClass : ""}
                             />
-                            {loginErrors.email && <span className="text-red-500 text-sm">{loginErrors.email.message}</span>}
+                            {loginErrors.usuario && <span className="text-red-500 text-sm">{loginErrors.usuario.message}</span>}
                           </div>
                           <div className="flex flex-col gap-2 w-full">
                             <label className="font-bold text-lg text-background-inverse" htmlFor="password">Contraseña</label>
@@ -241,6 +297,7 @@ function LoginRegisterModal({ isOpen, setIsOpen, mode, setMode }) {
                             {loginErrors.password && <span className="text-red-500 text-sm">{loginErrors.password.message}</span>}
                           </div>
                           <div className="flex w-full justify-end gap-2 pt-2">
+                            {authError && <span className="text-red-500 text-sm self-center mr-auto">{authError}</span>}
                             <Button onPress={() => setIsOpen(false)} slot="close" variant="secondary">Cancel</Button>
                             <Button type="submit" isDisabled={isLoggingIn} className="py-2 bg-accent text-accent-foreground rounded-md hover:bg-accent-soft transition-colors">Iniciar sesión</Button>
                           </div>
@@ -431,6 +488,7 @@ function LoginRegisterModal({ isOpen, setIsOpen, mode, setMode }) {
                           )}
 
                           <div className="flex w-full justify-end gap-2 pt-2">
+                            {authError && <span className="text-red-500 text-sm self-center mr-auto">{authError}</span>}
                             <Button onPress={() => setIsOpen(false)} slot="close" variant="secondary">Cancel</Button>
                             {selectedRolId !== "mesero" && (
                               <Button type="submit" isDisabled={isRegistering} className="py-2 bg-accent text-accent-foreground rounded-md hover:bg-accent-soft transition-colors">Registrarse</Button>

@@ -1,13 +1,18 @@
-import portada from "../assets/portada.png";
+import portada from "../../assets/portada.png";
 import { Button } from "@heroui/react";
-import ManageCard from "../components/landing/ManageCard";
-import menu from "../assets/menu.jpg";
-import pedidos from "../assets/pedidos.png";
-import ventas from "../assets/ventas.png";
-import ScrollIndicator from "../components/globals/ScrollIndicator";
+import ManageCard from "../../components/landing/ManageCard";
+import menu from "../../assets/menu.jpg";
+import pedidos from "../../assets/pedidos.png";
+import ventas from "../../assets/ventas.png";
+import ScrollIndicator from "../../components/globals/ScrollIndicator";
+import useStore from '../../store/useStore'
 
 
 function LandingPage() {
+
+    const { setIsOpen, setMode } = useStore()
+
+
     return (
         <article className="flex flex-col min-h-screen w-screen max-w-screen relative bg-background overflow-hidden">
             <ScrollIndicator />
@@ -20,9 +25,9 @@ function LandingPage() {
                         Tu restaurante, bajo control. Todo desde un solo lugar.
                     </h1>
                     <p className="w-1/2 text-center">
-                        Optimiza la administración de tu restaurante con herramientas diseñadas para simplificar tus operaciones. Gestiona pedidos, organiza tu menú, supervisa tus ventas y mantén cada detalle bajo control. Regístrate y descubre una forma más inteligente de administrar tu negocio.
+                        Descubre una nueva forma de disfrutar y gestionar tu experiencia gastronómica. Explora menús, descubre platillos, realiza pedidos y consulta su estado en tiempo real. Si administras un restaurante, también podrás gestionar pedidos, organizar tu menú, supervisar tus ventas y mantener cada detalle bajo control. Regístrate y descubre todo lo que SIGR tiene para ofrecerte.
                     </p>
-                    <Button>
+                    <Button onPress={()=>[setIsOpen(true), setMode('login')]}>
                         Empieza a administrar sin demora
                     </Button>
                 </div>

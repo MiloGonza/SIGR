@@ -2,6 +2,8 @@ from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from rest_framework.pagination import CursorPagination
 
+from .models import Profile
+
 User = get_user_model()
 
 
@@ -15,18 +17,24 @@ class UserSerializer(serializers.ModelSerializer):
 			"blank": "La contraseña no puede estar vacía",
 		},
 	)
+	rol = serializers.SerializerMethodField()
+	# Campo declarado explícitamente para no heredar UnicodeUsernameValidator
+	# del modelo (no permite espacios). La unicidad se valida abajo.
+	username = serializers.CharField(
+		max_length=150,
+		min_length=3,
+		error_messages={
+			"required": "El nombre de usuario es obligatorio",
+			"blank": "El nombre de usuario no puede estar vacío",
+			"min_length": "El nombre de usuario debe tener al menos 3 caracteres",
+			"max_length": "El nombre de usuario no puede superar los 150 caracteres",
+		},
+	)
 
 	class Meta:
 		model = User
-		fields = ("id", "username", "email", "password")
+		fields = ("id", "username", "email", "rol", "password")
 		extra_kwargs = {
-			"username": {
-				"required": True,
-				"error_messages": {
-					"required": "El nombre de usuario es obligatorio",
-					"blank": "El nombre de usuario no puede estar vacío",
-				},
-			},
 			"email": {
 				"required": True,
 				"error_messages": {
@@ -42,6 +50,10 @@ class UserSerializer(serializers.ModelSerializer):
 			raise serializers.ValidationError({"password": "La contraseña es obligatoria"})
 		return attrs
 
+	def get_rol(self, obj):
+		profile = getattr(obj, "profile", None)
+		return profile.rol if profile else Profile.CLIENTE
+
 	def validate_email(self, value):
 		value = value.strip().lower()
 		users = User.objects.filter(email__iexact=value)
@@ -52,7 +64,14 @@ class UserSerializer(serializers.ModelSerializer):
 		return value
 
 	def validate_username(self, value):
-		return value.strip()
+		# Permite espacios internos y normaliza los repetidos.
+		value = " ".join(value.split())
+		users = User.objects.filter(username__iexact=value)
+		if self.instance is not None:
+			users = users.exclude(pk=self.instance.pk)
+		if users.exists():
+			raise serializers.ValidationError("Ya existe un usuario con este nombre")
+		return value
 
 	def create(self, validated_data):
 		password = validated_data.pop("password")
