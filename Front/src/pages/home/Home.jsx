@@ -345,6 +345,7 @@ function Home() {
 											dish.restauranteId ??
 											stores.find((item) => item.nombre === dish.tienda)?.id;
 										const inCart = quantityInCart(cart, dish.id);
+										const soldOut = Number(dish.stock ?? 0) <= 0;
 										return (
 											<article
 												key={dish.id}
@@ -375,10 +376,15 @@ function Home() {
 													<span className="absolute top-3 left-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold text-neutral-900">
 														{dish.etiqueta}
 													</span>
-													{inCart > 0 && (
+													{inCart > 0 && !soldOut && (
 														<span className="absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-accent px-2 py-1 text-[10px] font-bold text-accent-foreground">
 															<ShoppingCart className="size-3" />
 															{inCart} en carrito
+														</span>
+													)}
+													{soldOut && (
+														<span className="absolute top-3 right-3 rounded-full bg-danger px-2 py-1 text-[10px] font-bold text-white">
+															Agotado
 														</span>
 													)}
 												</div>
@@ -411,15 +417,17 @@ function Home() {
 														<button
 															type="button"
 															onClick={() => handleAddToCart(dish)}
-															disabled={addingId === dish.id}
-															className="inline-flex items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1.5 text-xs font-semibold text-accent transition-colors hover:bg-accent hover:text-accent-foreground disabled:cursor-wait disabled:opacity-60"
+															disabled={addingId === dish.id || soldOut}
+															className="inline-flex items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1.5 text-xs font-semibold text-accent transition-colors hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-60"
 														>
 															<Plus className="size-3.5" />
-															{addedId === dish.id
-																? "Agregado"
-																: addingId === dish.id
-																	? "Agregando..."
-																	: "Agregar"}
+															{soldOut
+																? "Agotado"
+																: addedId === dish.id
+																	? "Agregado"
+																	: addingId === dish.id
+																		? "Agregando..."
+																		: "Agregar"}
 														</button>
 													</div>
 												</div>

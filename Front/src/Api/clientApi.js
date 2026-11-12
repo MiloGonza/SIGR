@@ -55,11 +55,60 @@ export const removeCartItem = (id) =>
 export const getOrders = (params = {}) =>
 	api.get("/orders/", { params }).then((response) => asList(response.data));
 
+export const getDashboardStats = (dias = 30) =>
+	api
+		.get("/orders/stats/", { params: { dias } })
+		.then((response) => response.data);
+
 export const getOrder = (id) =>
 	api.get(`/orders/${id}/`).then((response) => response.data);
 
 export const checkout = (payload) =>
 	api.post("/orders/", payload).then((response) => response.data);
+
+/* ------------------------------------------------------------------ */
+/* Recetas del restaurante (administrador)                             */
+/* ------------------------------------------------------------------ */
+
+export const getRecipes = () =>
+	api.get("/restaurants/recipes/").then((response) => asList(response.data));
+
+// Si el payload incluye un archivo se envía como multipart; si no, como JSON.
+const recipeConfig = (data) =>
+	typeof FormData !== "undefined" && data instanceof FormData
+		? { headers: { "Content-Type": "multipart/form-data" } }
+		: undefined;
+
+export const createRecipe = (data) =>
+	api
+		.post("/restaurants/recipes/", data, recipeConfig(data))
+		.then((response) => response.data);
+
+export const updateRecipe = (id, data) =>
+	api
+		.patch(`/restaurants/recipes/${id}/`, data, recipeConfig(data))
+		.then((response) => response.data);
+
+export const deleteRecipe = (id) =>
+	api.delete(`/restaurants/recipes/${id}/`).then((response) => response.data);
+
+/* ------------------------------------------------------------------ */
+/* Equipo del restaurante                                              */
+/* ------------------------------------------------------------------ */
+
+export const getEmployees = () =>
+	api.get("/users/employees/").then((response) => asList(response.data));
+
+export const createEmployee = (data) =>
+	api.post("/users/employees/", data).then((response) => response.data);
+
+export const updateEmployee = (id, data) =>
+	api
+		.patch(`/users/employees/${id}/`, data)
+		.then((response) => response.data);
+
+export const deleteEmployee = (id) =>
+	api.delete(`/users/employees/${id}/`).then((response) => response.data);
 
 /* ------------------------------------------------------------------ */
 /* Direcciones                                                         */

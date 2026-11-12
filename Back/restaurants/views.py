@@ -7,12 +7,39 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from .models import Category, Dish, Restaurant
-from .serializers import CategorySerializer, DishSerializer, RestaurantSerializer
+from .serializers import (
+	AdminDishSerializer,
+	CategorySerializer,
+	DishSerializer,
+	RestaurantSerializer,
+)
 
 
 class RestaurantCursorPagination(CursorPagination):
 	page_size = 100
 	ordering = "-pk"
+
+
+def get_admin_profile(user):
+	from users.models import Profile
+
+	profile = getattr(user, "profile", None)
+	if (
+		profile
+		and profile.rol == Profile.ADMINISTRADOR
+		and profile.restaurante_id
+	):
+		return profile
+	return None
+
+
+def admin_required_response(request):
+	if get_admin_profile(request.user):
+		return None
+	return Response(
+		{"detail": "Solo el administrador de un restaurante puede gestionar recetas."},
+		status=status.HTTP_403_FORBIDDEN,
+	)
 
 
 @api_view(["POST"])
@@ -128,3 +155,56 @@ def get_restaurant_menu(request, pk):
 			"platillos": serializer.data,
 		}
 	)
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def recipes(request):
+	"""Listar o crear recetas/platillos del restaurante del administrador."""
+	denied = admin_required_response(request)
+	if denied:
+		return denied
+	profile = get_admin_profile(request.user)
+	queryset = Dish.objects.filter(restaurante=profile.restaurante).select_related(
+		"categoria"
+	)
+
+	if request.method == "GET":
+		serializer = AdminDishSerializer(
+			queryset, many=True, context={"request": request}
+		)
+		return Response(serializer.data)
+
+	serializer = AdminDishSerializer(
+		data=request.data, context={"request": request}
+	)
+	if serializer.is_valid():
+		serializer.save(restaurante=profile.restaurante)
+		return Response(serializer.data, status=status.HTTP_201_CREATED)
+	return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["GET", "PATCH", "DELETE"])
+@permission_classes([IsAuthenticated])
+def recipe_detail(request, pk):
+	denied = admin_required_response(request)
+	if denied:
+		return denied
+	profile = get_admin_profile(request.user)
+	recipe = get_object_or_404(Dish, pk=pk, restaurante=profile.restaurante)
+
+	if request.method == "GET":
+		return Response(
+			AdminDishSerializer(recipe, context={"request": request}).data
+		)
+	if request.method == "DELETE":
+		recipe.delete()
+		return Response(status=status.HTTP_204_NO_CONTENT)
+
+	serializer = AdminDishSerializer(
+		recipe, data=request.data, partial=True, context={"request": request}
+	)
+	if serializer.is_valid():
+		serializer.save()
+		return Response(serializer.data)
+	return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

@@ -28,6 +28,7 @@ const categoryName = (dish) =>
 	(dish.categoria_nombre || dish.categoria || "").trim() || OTHER_CATEGORY;
 
 function DishCard({ dish, inCart, adding, added, onAdd }) {
+	const soldOut = Number(dish.stock ?? 0) <= 0;
 	return (
 		<article className="group flex flex-col overflow-hidden rounded-2xl border border-border bg-surface transition-all duration-200 hover:-translate-y-1 hover:border-accent/30 hover:shadow-lg">
 			<div className="relative h-36 overflow-hidden">
@@ -48,10 +49,15 @@ function DishCard({ dish, inCart, adding, added, onAdd }) {
 				<span className="absolute top-3 left-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold text-neutral-900">
 					{dish.etiqueta || "Nuevo"}
 				</span>
-				{inCart > 0 && (
+				{inCart > 0 && !soldOut && (
 					<span className="absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-accent px-2 py-1 text-[10px] font-bold text-accent-foreground">
 						<ShoppingCart className="size-3" />
 						{inCart} en carrito
+					</span>
+				)}
+				{soldOut && (
+					<span className="absolute top-3 right-3 rounded-full bg-danger px-2 py-1 text-[10px] font-bold text-white">
+						Agotado
 					</span>
 				)}
 			</div>
@@ -83,11 +89,17 @@ function DishCard({ dish, inCart, adding, added, onAdd }) {
 					<button
 						type="button"
 						onClick={() => onAdd(dish)}
-						disabled={adding}
-						className="inline-flex items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1.5 text-xs font-semibold text-accent transition-colors hover:bg-accent hover:text-accent-foreground disabled:cursor-wait disabled:opacity-60"
+						disabled={adding || soldOut}
+						className="inline-flex items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1.5 text-xs font-semibold text-accent transition-colors hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-60"
 					>
 						<Plus className="size-3.5" />
-						{added ? "Agregado" : adding ? "Agregando..." : "Agregar"}
+						{soldOut
+							? "Agotado"
+							: added
+								? "Agregado"
+								: adding
+									? "Agregando..."
+									: "Agregar"}
 					</button>
 				</div>
 			</div>

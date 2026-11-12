@@ -17,10 +17,14 @@ const useStore = create((set) => ({
     else localStorage.removeItem('user')
     set({ user })
   },
+  // Evita que, al cerrar sesión, las rutas protegidas abran el modal de acceso
+  // mientras la cortina todavía está en pantalla.
+  loggingOut: false,
+  finishLogout: () => set({ loggingOut: false }),
   logout: () => {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
-    set({ user: null })
+    set({ user: null, isOpen: false, loggingOut: true })
   },
 
   //*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
@@ -33,7 +37,11 @@ const useStore = create((set) => ({
 
   //*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*
   isOpen: false,
-  setIsOpen: (val) => set({ isOpen: val }),
+  // Un clic manual para abrir el modal cancela el estado de cierre de sesión.
+  setIsOpen: (val) => set((state) => ({
+    isOpen: val,
+    loggingOut: val ? false : state.loggingOut,
+  })),
   mode: 'login',
   setMode: (val) => set({ mode: val }),
 

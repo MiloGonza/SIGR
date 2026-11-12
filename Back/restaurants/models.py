@@ -93,6 +93,7 @@ class Dish(models.Model):
 	rating_count = models.PositiveIntegerField(default=0)
 	etiqueta = models.CharField(max_length=60, blank=True)
 	prep_minutes = models.PositiveSmallIntegerField(default=15)
+	stock = models.PositiveIntegerField(default=0)
 	image = models.FileField(upload_to="dishes/", blank=True)
 	icon = models.CharField(max_length=40, default="ChefHat")
 	gradient = models.CharField(

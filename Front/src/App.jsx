@@ -1,6 +1,6 @@
 import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router'
 import { motion, AnimatePresence } from 'motion/react'
-import { useState, useEffect } from 'react'
+import { lazy, Suspense, useState, useEffect } from 'react'
 import NavBar from './components/globals/NavBar'
 import SideBar from './components/globals/SideBar'
 import useStore from './store/useStore'
@@ -14,13 +14,15 @@ import Payments from './pages/home/Payments'
 import Addresses from './pages/home/Addresses'
 import ClientOrders from './pages/home/Orders'
 import ClientHistory from './pages/home/History'
-import Stats from './pages/dashboard/admin/Stats'
 import Emplpoys from './pages/dashboard/admin/Emplpoys'
 import Recipes from './pages/dashboard/admin/Recipes'
 import EmployOrders from './pages/dashboard/employ/Orders'
 import Schedule from './pages/dashboard/employ/Schedule'
 import Stock from './pages/dashboard/employ/Stock'
 import { SIDEBAR_WIDTH, getDefaultWorkspacePath, isWorkspacePath, normalizeRole } from './config/sidebarNav'
+
+// ECharts pesa bastante: solo se descarga cuando el administrador abre el resumen.
+const Stats = lazy(() => import('./pages/dashboard/admin/Stats'))
 
 const COVER_MS = 400
 const TRANSITION_MS = 800
@@ -36,7 +38,9 @@ const Curtain = () => (
 		transition={{ duration: COVER_MS / 1000, ease: 'easeInOut' }}
 		style={{
 			position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-			backgroundColor: 'black', zIndex: 9999, pointerEvents: 'none'
+			// Por encima de cualquier overlay de HeroUI (--z-index-overlay: 100000),
+			// incluyendo el portal del modal de acceso.
+			backgroundColor: 'black', zIndex: 2147483647, pointerEvents: 'none'
 		}}
 	/>
 )
@@ -61,12 +65,12 @@ function DashboardHome() {
 // Protege las rutas privadas: sin sesión abre el modal de acceso y regresa al
 // inicio; si el rol no corresponde a la sección, lleva a su espacio de trabajo.
 function RequireAuth({ roles }) {
-	const { user, setIsOpen } = useStore()
+	const { user, setIsOpen, loggingOut } = useStore()
 	const role = normalizeRole(user?.rol) ?? 'cliente'
 
 	useEffect(() => {
-		if (!user) setIsOpen(true)
-	}, [user, setIsOpen])
+		if (!user && !loggingOut) setIsOpen(true)
+	}, [user, loggingOut, setIsOpen])
 
 	if (!user) return <Navigate to="/" replace />
 	if (roles && !roles.includes(role)) {
@@ -85,7 +89,7 @@ function App() {
 	// que la cortina cubre la pantalla: así la página no desaparece.
 	const [displayLocation, setDisplayLocation] = useState(location)
 	const [lastPath, setLastPath] = useState(location.pathname)
-	const { user, darkMode, triggerCurtain, setTriggerCurtain, isOpen, setIsOpen, mode, setMode } = useStore()
+	const { user, darkMode, triggerCurtain, setTriggerCurtain, isOpen, setIsOpen, mode, setMode, loggingOut, finishLogout } = useStore()
 
 	// Mantiene al usuario visible mientras la cortina tapa la pantalla al cerrar
 	// sesión; así la barra lateral no desaparece antes de tiempo.
@@ -117,6 +121,14 @@ function App() {
 			}
 		}
 	}, [triggerCurtain, darkMode, setTriggerCurtain])
+
+	// El cierre de sesión dura lo mismo que la transición de la cortina. Al
+	// terminar, las rutas protegidas vuelven a poder pedir el inicio de sesión.
+	useEffect(() => {
+		if (!loggingOut) return undefined
+		const done = setTimeout(finishLogout, TRANSITION_MS)
+		return () => clearTimeout(done)
+	}, [loggingOut, finishLogout])
 
 	// La cortina tapa la pantalla con la página anterior congelada; recién ahí
 	// cambiamos a la ruta nueva y, al terminar de cubrir, retiramos la cortina.
@@ -200,9 +212,17 @@ function App() {
 
 						<Route element={<RequireAuth roles={["administrador"]} />}>
 							<Route path="/dashboard/resumen" element={
-								<Page>
-									<Stats />
-								</Page>
+								<Suspense
+									fallback={
+										<div className="flex min-h-dvh items-center justify-center bg-background text-sm text-muted">
+											Cargando resumen...
+										</div>
+									}
+								>
+									<Page>
+										<Stats />
+									</Page>
+								</Suspense>
 							} />
 							<Route path="/dashboard/empleados" element={
 								<Page>

@@ -403,7 +403,7 @@ class Command(BaseCommand):
 				for key, value in data.items()
 				if key not in {"restaurante", "categoria", "image"}
 			}
-			dish, _ = Dish.objects.update_or_create(
+			dish, created = Dish.objects.update_or_create(
 				restaurante=restaurant,
 				nombre=data["nombre"],
 				defaults={
@@ -412,6 +412,9 @@ class Command(BaseCommand):
 					"is_active": True,
 				},
 			)
+			if created:
+				dish.stock = 24
+				dish.save(update_fields=["stock"])
 			self.attach_image(dish, data["image"])
 
 		self.stdout.write(

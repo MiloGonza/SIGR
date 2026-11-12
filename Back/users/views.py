@@ -9,6 +9,7 @@ from rest_framework.authtoken.models import Token
 from .models import Address, PaymentMethod, Profile
 from .serializers import (
 	AddressSerializer,
+	EmployeeSerializer,
 	PaymentMethodSerializer,
 	UserCursorPagination,
 	UserSerializer,
@@ -31,6 +32,22 @@ LOCAL_NAME_KEYS = ("Nombre del local", "nombreLocal", "nombre_local", "nombre de
 
 def normalize_role(role):
 	return ROLE_ALIASES.get(str(role or "").strip().lower(), Profile.CLIENTE)
+
+
+# Roles que un administrador puede asignar dentro de su propio restaurante.
+EMPLOYEE_ROLES = (Profile.MESERO, Profile.ADMINISTRADOR)
+
+
+def get_admin_profile(user):
+	profile = getattr(user, "profile", None)
+	if profile and profile.rol == Profile.ADMINISTRADOR and profile.restaurante_id:
+		return profile
+	return None
+
+
+def parse_employee_role(value):
+	role = ROLE_ALIASES.get(str(value or Profile.MESERO).strip().lower())
+	return role if role in EMPLOYEE_ROLES else None
 
 
 @api_view(["POST"])
@@ -165,6 +182,133 @@ def login_user(request):
 		},
 		status=status.HTTP_200_OK,
 	)
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def employees(request):
+	"""Listar o crear empleados del restaurante que administra el usuario."""
+	admin = get_admin_profile(request.user)
+	if admin is None:
+		return Response(
+			{
+				"detail": (
+					"Solo un administrador con restaurante asociado puede "
+					"gestionar empleados."
+				)
+			},
+			status=status.HTTP_403_FORBIDDEN,
+		)
+
+	if request.method == "GET":
+		team = (
+			User.objects.filter(
+				profile__restaurante_id=admin.restaurante_id,
+				profile__rol__in=EMPLOYEE_ROLES,
+			)
+			.select_related("profile")
+			.order_by("username")
+		)
+		return Response(EmployeeSerializer(team, many=True).data)
+
+	rol = parse_employee_role(request.data.get("rol"))
+	if rol is None:
+		return Response(
+			{"rol": ["El rol debe ser mesero o administrador."]},
+			status=status.HTTP_400_BAD_REQUEST,
+		)
+
+	data = request.data.copy()
+	data.pop("rol", None)
+	data.pop("role", None)
+	serializer = EmployeeSerializer(data=data)
+	if serializer.is_valid():
+		user = serializer.save()
+		Profile.objects.update_or_create(
+			user=user,
+			defaults={"rol": rol, "restaurante": admin.restaurante},
+		)
+		return Response(
+			EmployeeSerializer(user).data,
+			status=status.HTTP_201_CREATED,
+		)
+	return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["GET", "PATCH", "DELETE"])
+@permission_classes([IsAuthenticated])
+def employee_detail(request, pk):
+	"""Consultar, editar o eliminar un empleado del restaurante del admin."""
+	admin = get_admin_profile(request.user)
+	if admin is None:
+		return Response(
+			{
+				"detail": (
+					"Solo un administrador con restaurante asociado puede "
+					"gestionar empleados."
+				)
+			},
+			status=status.HTTP_403_FORBIDDEN,
+		)
+
+	profile = get_object_or_404(
+		Profile.objects.select_related("user"),
+		user_id=pk,
+		restaurante_id=admin.restaurante_id,
+		rol__in=EMPLOYEE_ROLES,
+	)
+	employee = profile.user
+
+	if request.method == "GET":
+		return Response(EmployeeSerializer(employee).data)
+
+	if request.method == "DELETE":
+		if employee.pk == request.user.pk:
+			return Response(
+				{"detail": "No puedes eliminar tu propio perfil."},
+				status=status.HTTP_400_BAD_REQUEST,
+			)
+		employee.delete()
+		return Response(status=status.HTTP_204_NO_CONTENT)
+
+	rol = None
+	if "rol" in request.data or "role" in request.data:
+		rol = parse_employee_role(
+			request.data.get("rol") or request.data.get("role")
+		)
+		if rol is None:
+			return Response(
+				{"rol": ["El rol debe ser mesero o administrador."]},
+				status=status.HTTP_400_BAD_REQUEST,
+			)
+
+	if (
+		employee.pk == request.user.pk
+		and rol is not None
+		and rol != Profile.ADMINISTRADOR
+	):
+		return Response(
+			{"rol": ["No puedes cambiar tu propio rol de administrador."]},
+			status=status.HTTP_400_BAD_REQUEST,
+		)
+
+	if employee.pk == request.user.pk and request.data.get("is_active") is False:
+		return Response(
+			{"is_active": ["No puedes desactivar tu propio perfil."]},
+			status=status.HTTP_400_BAD_REQUEST,
+		)
+
+	data = request.data.copy()
+	data.pop("rol", None)
+	data.pop("role", None)
+	serializer = EmployeeSerializer(employee, data=data, partial=True)
+	if serializer.is_valid():
+		serializer.save()
+		if rol is not None:
+			profile.rol = rol
+			profile.save(update_fields=["rol"])
+		return Response(EmployeeSerializer(employee).data)
+	return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["GET", "POST"])

@@ -68,6 +68,7 @@ const mapDish = (dish) => ({
 	image: dish.image,
 	descripcion: dish.descripcion ?? "",
 	prep_minutes: dish.prep_minutes ?? 0,
+	stock: Number(dish.stock ?? 0),
 });
 
 const initialCatalog = {

@@ -91,6 +91,27 @@ class UserSerializer(serializers.ModelSerializer):
 		return instance
 
 
+class EmployeeSerializer(UserSerializer):
+	"""Usuario del equipo de un restaurante.
+
+	El rol no se toma del cuerpo: la vista lo valida y lo asigna en el perfil
+	para que un administrador no pueda crear clientes desde este endpoint.
+	"""
+
+	class Meta(UserSerializer.Meta):
+		fields = (
+			"id",
+			"username",
+			"email",
+			"rol",
+			"password",
+			"is_active",
+			"date_joined",
+			"last_login",
+		)
+		read_only_fields = ("id", "rol", "date_joined", "last_login")
+
+
 class UserCursorPagination(CursorPagination):
 	page_size = 100
 	ordering = "-pk"
