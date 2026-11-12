@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Link } from "react-router";
 import {
@@ -7,15 +7,18 @@ import {
 	ChefHat,
 	Clock,
 	MapPin,
+	Plus,
 	Search,
+	ShoppingCart,
 	Sparkles,
 	Star,
 	X,
 } from "lucide-react";
 import useStore from "../../store/useStore";
-import dishCurry from "../../assets/dish-curry.jpg";
+import useCartStore, { quantityInCart } from "../../store/useCartStore";
 import LazyImage from "../../components/globals/LazyImage";
-import { CATEGORIES, DISHES, STORES } from "./data";
+import useCatalog from "../../hooks/useCatalog";
+import { getApiErrorMessage } from "../../Api/clientApi";
 
 const normalize = (value = "") => value.trim().toLowerCase();
 
@@ -31,15 +34,30 @@ function SectionHeading({ title, action }) {
 }
 
 function Home() {
-	const { user } = useStore();
+	const { user, setIsOpen } = useStore();
+	const { cart, count, fetchCart, addItem, reset } = useCartStore();
+	const { stores, dishes, categories } = useCatalog();
 	const [query, setQuery] = useState("");
 	const [category, setCategory] = useState("Todos");
+	const [addingId, setAddingId] = useState(null);
+	const [addedId, setAddedId] = useState(null);
+	const [cartError, setCartError] = useState("");
+
+	// Mantiene el contador del carrito al día al entrar al home o cambiar de
+	// sesión. Si el backend no responde, la vista sigue funcionando sin él.
+	useEffect(() => {
+		if (!user) {
+			reset();
+			return;
+		}
+		fetchCart().catch(() => {});
+	}, [user, fetchCart, reset]);
 
 	const search = normalize(query);
 	const isExploring = !search && category === "Todos";
 	const firstName = user?.username?.trim().split(/\s+/)[0] ?? "vecino";
 
-	const visibleStores = STORES.filter((store) => {
+	const visibleStores = stores.filter((store) => {
 		const byCategory = category === "Todos" || store.tags.includes(category);
 		const bySearch =
 			!search ||
@@ -49,7 +67,7 @@ function Home() {
 		return byCategory && bySearch;
 	});
 
-	const visibleDishes = DISHES.filter((dish) => {
+	const visibleDishes = dishes.filter((dish) => {
 		const byCategory = category === "Todos" || dish.categoria === category;
 		const bySearch =
 			!search ||
@@ -60,6 +78,26 @@ function Home() {
 	});
 
 	const hasResults = visibleStores.length > 0 || visibleDishes.length > 0;
+
+	const handleAddToCart = async (dish) => {
+		if (!user) {
+			setIsOpen(true);
+			return;
+		}
+		setAddingId(dish.id);
+		setCartError("");
+		try {
+			await addItem(dish.id, 1);
+			setAddedId(dish.id);
+			window.setTimeout(() => setAddedId(null), 1600);
+		} catch (error) {
+			setCartError(
+				getApiErrorMessage(error, "No se pudo agregar el platillo al carrito"),
+			);
+		} finally {
+			setAddingId(null);
+		}
+	};
 
 	return (
 		<section className="min-h-dvh w-full bg-background px-5 py-8 md:px-10 md:py-10">
@@ -73,10 +111,22 @@ function Home() {
 							¿Qué se te antoja hoy?
 						</h1>
 					</div>
-					<span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-xs font-medium text-muted">
-						<MapPin className="size-4 text-accent" />
-						Entregar en casa
-					</span>
+					<div className="flex flex-wrap items-center gap-2">
+						<span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-xs font-medium text-muted">
+							<MapPin className="size-4 text-accent" />
+							Entregar en casa
+						</span>
+						<Link
+							to="/home/carrito"
+							aria-label={`Ver carrito: ${count} ${count === 1 ? "producto" : "productos"}`}
+							className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-xs font-semibold text-foreground transition-colors hover:border-accent/40 hover:text-accent"
+						>
+							<ShoppingCart className="size-4 text-accent" />
+							{count > 0
+								? `${count} ${count === 1 ? "producto" : "productos"} en el carrito`
+								: "Carrito vacío"}
+						</Link>
+					</div>
 				</header>
 
 				<div className="mt-6 flex items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-3 shadow-sm transition-colors focus-within:border-accent/40">
@@ -102,7 +152,7 @@ function Home() {
 				</div>
 
 				<div className="mt-5 flex gap-2 overflow-x-auto pb-1">
-					{CATEGORIES.map((item) => {
+					{categories.map((item) => {
 						const Icon = item.icon;
 						const active = category === item.name;
 						return (
@@ -124,6 +174,12 @@ function Home() {
 					})}
 				</div>
 
+				{cartError && (
+					<p className="mt-4 rounded-xl border border-danger/30 bg-danger/10 px-4 py-2.5 text-sm text-danger">
+						{cartError}
+					</p>
+				)}
+
 				{isExploring && (
 					<motion.div
 						initial={{ opacity: 0, y: 14 }}
@@ -133,7 +189,7 @@ function Home() {
 					>
 						<div className="absolute inset-y-0 right-0 hidden w-1/2 md:block">
 							<LazyImage
-								src={dishCurry}
+								src={stores[0]?.image}
 								alt=""
 								className="h-full w-full"
 								fallback={
@@ -217,8 +273,9 @@ function Home() {
 									{visibleStores.map((store) => {
 										const Icon = store.icon;
 										return (
-											<article
+											<Link
 												key={store.id}
+												to={`/home/tiendas/${store.id}`}
 												className="group overflow-hidden rounded-2xl border border-border bg-surface transition-all duration-200 hover:-translate-y-1 hover:border-accent/30 hover:shadow-lg"
 											>
 												<div className="relative h-32">
@@ -229,7 +286,8 @@ function Home() {
 														imageClassName="transition-transform duration-500 group-hover:scale-105"
 														fallback={
 															<div
-																className={`flex h-full w-full items-center justify-center bg-linear-to-br ${store.gradient}`}
+																className="flex h-full w-full items-center justify-center"
+																style={{ backgroundImage: store.gradient }}
 															>
 																<Icon className="size-20 text-white/25" />
 															</div>
@@ -239,7 +297,7 @@ function Home() {
 													<span className="absolute top-3 left-3 rounded-full bg-black/25 px-2.5 py-1 text-[10px] font-semibold text-white backdrop-blur-sm">
 														{store.tags[0]}
 													</span>
-													<span className="absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-foreground">
+													<span className="absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-neutral-900">
 														<Star className="size-3 fill-warning text-warning" />
 														{store.rating}
 													</span>
@@ -259,8 +317,12 @@ function Home() {
 															{store.envio}
 														</span>
 													</div>
+													<span className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-accent">
+														Ver menú
+														<ArrowRight className="size-3.5" />
+													</span>
 												</div>
-											</article>
+											</Link>
 										);
 									})}
 								</div>
@@ -279,6 +341,10 @@ function Home() {
 								<div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
 									{visibleDishes.map((dish) => {
 										const Icon = dish.icon;
+										const storeId =
+											dish.restauranteId ??
+											stores.find((item) => item.nombre === dish.tienda)?.id;
+										const inCart = quantityInCart(cart, dish.id);
 										return (
 											<article
 												key={dish.id}
@@ -292,21 +358,44 @@ function Home() {
 														imageClassName="transition-transform duration-500 group-hover:scale-105"
 														fallback={
 															<div
-																className={`flex h-full w-full items-center justify-center bg-linear-to-br ${dish.gradient}`}
+																className="flex h-full w-full items-center justify-center"
+																style={{ backgroundImage: dish.gradient }}
 															>
 																<Icon className="size-12 text-white/50" />
 															</div>
 														}
 													/>
-													<span className="absolute top-3 left-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold text-foreground">
+													{storeId && (
+														<Link
+															to={`/home/tiendas/${storeId}`}
+															aria-label={`Ver menú de ${dish.tienda}`}
+															className="absolute inset-0"
+														/>
+													)}
+													<span className="absolute top-3 left-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold text-neutral-900">
 														{dish.etiqueta}
 													</span>
+													{inCart > 0 && (
+														<span className="absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-accent px-2 py-1 text-[10px] font-bold text-accent-foreground">
+															<ShoppingCart className="size-3" />
+															{inCart} en carrito
+														</span>
+													)}
 												</div>
 												<div className="flex flex-1 flex-col p-4">
 													<div className="flex items-start justify-between gap-2">
-														<h3 className="font-semibold text-foreground">
-															{dish.nombre}
-														</h3>
+														{storeId ? (
+															<Link
+																to={`/home/tiendas/${storeId}`}
+																className="font-semibold text-foreground hover:text-accent"
+															>
+																{dish.nombre}
+															</Link>
+														) : (
+															<h3 className="font-semibold text-foreground">
+																{dish.nombre}
+															</h3>
+														)}
 														<span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold text-muted">
 															<Star className="size-3 fill-warning text-warning" />
 															{dish.rating}
@@ -319,13 +408,19 @@ function Home() {
 														<span className="font-semibold text-accent">
 															{dish.precio}
 														</span>
-														<Link
-															to="/home/tiendas"
-															className="inline-flex items-center gap-1 text-xs font-semibold text-foreground hover:text-accent"
+														<button
+															type="button"
+															onClick={() => handleAddToCart(dish)}
+															disabled={addingId === dish.id}
+															className="inline-flex items-center gap-1 rounded-lg bg-accent/10 px-2.5 py-1.5 text-xs font-semibold text-accent transition-colors hover:bg-accent hover:text-accent-foreground disabled:cursor-wait disabled:opacity-60"
 														>
-															Ver menú
-															<ArrowRight className="size-3.5" />
-														</Link>
+															<Plus className="size-3.5" />
+															{addedId === dish.id
+																? "Agregado"
+																: addingId === dish.id
+																	? "Agregando..."
+																	: "Agregar"}
+														</button>
 													</div>
 												</div>
 											</article>

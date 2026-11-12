@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useLocation } from 'react-router'
+import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router'
 import { motion, AnimatePresence } from 'motion/react'
 import { useState, useEffect } from 'react'
 import NavBar from './components/globals/NavBar'
@@ -8,6 +8,7 @@ import LandingPage from './pages/landingPage/LandingPage'
 import LoginRegisterModal from './components/loginRegister/LoginRegisterModal'
 import Home from './pages/home/Home'
 import Shops from './pages/home/Shops'
+import StoreDetail from './pages/home/StoreDetail'
 import Cars from './pages/home/Cars'
 import Payments from './pages/home/Payments'
 import Addresses from './pages/home/Addresses'
@@ -19,7 +20,7 @@ import Recipes from './pages/dashboard/admin/Recipes'
 import EmployOrders from './pages/dashboard/employ/Orders'
 import Schedule from './pages/dashboard/employ/Schedule'
 import Stock from './pages/dashboard/employ/Stock'
-import { SIDEBAR_WIDTH, getDefaultWorkspacePath, isWorkspacePath } from './config/sidebarNav'
+import { SIDEBAR_WIDTH, getDefaultWorkspacePath, isWorkspacePath, normalizeRole } from './config/sidebarNav'
 
 const COVER_MS = 400
 const TRANSITION_MS = 800
@@ -55,6 +56,23 @@ const Page = ({ children }) => (
 function DashboardHome() {
 	const { user } = useStore()
 	return <Navigate to={getDefaultWorkspacePath(user?.rol)} replace />
+}
+
+// Protege las rutas privadas: sin sesión abre el modal de acceso y regresa al
+// inicio; si el rol no corresponde a la sección, lleva a su espacio de trabajo.
+function RequireAuth({ roles }) {
+	const { user, setIsOpen } = useStore()
+	const role = normalizeRole(user?.rol) ?? 'cliente'
+
+	useEffect(() => {
+		if (!user) setIsOpen(true)
+	}, [user, setIsOpen])
+
+	if (!user) return <Navigate to="/" replace />
+	if (roles && !roles.includes(role)) {
+		return <Navigate to={getDefaultWorkspacePath(role)} replace />
+	}
+	return <Outlet />
 }
 
 function App() {
@@ -136,72 +154,86 @@ function App() {
 								<LandingPage />
 							</Page>
 						} />
-						<Route path="/home" element={
-							<Page>
-								<Home />
-							</Page>
-						} />
-						<Route path="/home/tiendas" element={
-							<Page>
-								<Shops />
-							</Page>
-						} />
-						<Route path="/home/carrito" element={
-							<Page>
-								<Cars />
-							</Page>
-						} />
-						<Route path="/home/metodos-pago" element={
-							<Page>
-								<Payments />
-							</Page>
-						} />
-						<Route path="/home/direcciones" element={
-							<Page>
-								<Addresses />
-							</Page>
-						} />
-						<Route path="/home/pedidos" element={
-							<Page>
-								<ClientOrders />
-							</Page>
-						} />
-						<Route path="/home/historial" element={
-							<Page>
-								<ClientHistory />
-							</Page>
-						} />
-						<Route path="/dashboard" element={<DashboardHome />} />
-						<Route path="/dashboard/resumen" element={
-							<Page>
-								<Stats />
-							</Page>
-						} />
-						<Route path="/dashboard/empleados" element={
-							<Page>
-								<Emplpoys />
-							</Page>
-						} />
-						<Route path="/dashboard/recetas" element={
-							<Page>
-								<Recipes />
-							</Page>
-						} />
-						<Route path="/dashboard/pedidos" element={
-							<Page>
-								<EmployOrders />
-							</Page>
-						} />
-						<Route path="/dashboard/turnos" element={
-							<Page>
-								<Schedule />
-							</Page>
-						} />
-						<Route path="/dashboard/disponibilidad" element={
-							<Page>
-								<Stock />
-							</Page>
-						} />
+
+						<Route element={<RequireAuth roles={["cliente"]} />}>
+							<Route path="/home" element={
+								<Page>
+									<Home />
+								</Page>
+							} />
+							<Route path="/home/tiendas" element={
+								<Page>
+									<Shops />
+								</Page>
+							} />
+							<Route path="/home/tiendas/:id" element={
+								<Page>
+									<StoreDetail />
+								</Page>
+							} />
+							<Route path="/home/carrito" element={
+								<Page>
+									<Cars />
+								</Page>
+							} />
+							<Route path="/home/metodos-pago" element={
+								<Page>
+									<Payments />
+								</Page>
+							} />
+							<Route path="/home/direcciones" element={
+								<Page>
+									<Addresses />
+								</Page>
+							} />
+							<Route path="/home/pedidos" element={
+								<Page>
+									<ClientOrders />
+								</Page>
+							} />
+							<Route path="/home/historial" element={
+								<Page>
+									<ClientHistory />
+								</Page>
+							} />
+						</Route>
+
+						<Route element={<RequireAuth roles={["administrador"]} />}>
+							<Route path="/dashboard/resumen" element={
+								<Page>
+									<Stats />
+								</Page>
+							} />
+							<Route path="/dashboard/empleados" element={
+								<Page>
+									<Emplpoys />
+								</Page>
+							} />
+							<Route path="/dashboard/recetas" element={
+								<Page>
+									<Recipes />
+								</Page>
+							} />
+						</Route>
+
+						<Route element={<RequireAuth roles={["administrador", "mesero"]} />}>
+							<Route path="/dashboard" element={<DashboardHome />} />
+							<Route path="/dashboard/pedidos" element={
+								<Page>
+									<EmployOrders />
+								</Page>
+							} />
+							<Route path="/dashboard/turnos" element={
+								<Page>
+									<Schedule />
+								</Page>
+							} />
+							<Route path="/dashboard/disponibilidad" element={
+								<Page>
+									<Stock />
+								</Page>
+							} />
+						</Route>
 					</Routes>
 				</div>
 			</motion.div>

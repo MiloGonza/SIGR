@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Link } from "react-router";
 import {
 	ArrowRight,
@@ -11,20 +11,12 @@ import {
 	Store,
 	Timer,
 } from "lucide-react";
+import { getApiErrorMessage, getOrders } from "../../Api/clientApi";
+import useStore from "../../store/useStore";
+import { formatCOP } from "../../utils/format";
 
 const CLOCK_TICK_MS = 1000;
-const LOADED_AT = Date.now();
-
-function minutesAgo(minutes) {
-	return LOADED_AT - minutes * 60_000;
-}
-
-function yesterdayAt(hours, minutes) {
-	const date = new Date(LOADED_AT);
-	date.setDate(date.getDate() - 1);
-	date.setHours(hours, minutes, 0, 0);
-	return date.getTime();
-}
+const ORDERS_REFRESH_MS = 30000;
 
 const TIME_FORMAT = new Intl.DateTimeFormat("es-CO", {
 	hour: "numeric",
@@ -37,70 +29,54 @@ const DATE_FORMAT = new Intl.DateTimeFormat("es-CO", {
 });
 
 const STATUS = {
-	"En preparación": {
+	pendiente: {
+		label: "Pendiente",
 		icon: Clock,
-		className: "bg-warning/10 text-warning",
+		className: "bg-default text-muted",
 	},
-	"En camino": {
-		icon: Bike,
-		className: "bg-accent/10 text-accent",
-	},
-	Confirmado: {
+	confirmado: {
+		label: "Confirmado",
 		icon: Check,
 		className: "bg-success/10 text-success",
 	},
+	preparando: {
+		label: "En preparación",
+		icon: Clock,
+		className: "bg-warning/10 text-warning",
+	},
+	en_camino: {
+		label: "En camino",
+		icon: Bike,
+		className: "bg-accent/10 text-accent",
+	},
+	entregado: {
+		label: "Entregado",
+		icon: Check,
+		className: "bg-success/10 text-success",
+	},
+	cancelado: {
+		label: "Cancelado",
+		icon: Clock,
+		className: "bg-danger/10 text-danger",
+	},
 };
 
-// Pedidos de demostración mientras el backend expone el historial real.
-// acceptedAt y prepMinutes son los datos que permiten calcular la demora.
-const ORDERS = [
-	{
-		id: "PY-2048",
-		tienda: "Punto y Sazón",
-		acceptedAt: minutesAgo(8),
-		prepMinutes: 22,
-		estado: "En preparación",
-		total: "$28.300",
-		entrega: "Calle 45 #12-30",
-		detalles: [
-			{
-				cantidad: 1,
-				nombre: "Pollo al curry",
-				precio: "$18.900",
-				prepMinutes: 22,
-			},
-			{
-				cantidad: 1,
-				nombre: "Limonada de la casa",
-				precio: "$6.500",
-				prepMinutes: 4,
-			},
-		],
-	},
-	{
-		id: "PY-2031",
-		tienda: "La Brasa",
-		acceptedAt: yesterdayAt(20, 15),
-		prepMinutes: 16,
-		estado: "En camino",
-		total: "$33.400",
-		entrega: "Carrera 7 #80-15",
-		detalles: [
-			{
-				cantidad: 1,
-				nombre: "Pizza margarita",
-				precio: "$22.000",
-				prepMinutes: 16,
-			},
-			{
-				cantidad: 1,
-				nombre: "Mousse de chocolate",
-				precio: "$9.500",
-				prepMinutes: 6,
-			},
-		],
-	},
-];
+const mapOrder = (order) => ({
+	id: order.numero,
+	tienda: order.tienda,
+	acceptedAt: new Date(order.accepted_at || order.created_at).getTime(),
+	prepMinutes: order.prep_minutes || 0,
+	estado: order.estado,
+	estadoLabel: order.estado_label,
+	total: formatCOP(order.total),
+	entrega: order.direccion_entrega,
+	detalles: (order.items ?? []).map((item) => ({
+		nombre: item.nombre,
+		cantidad: item.cantidad,
+		precio: formatCOP(item.precio_unitario),
+		prepMinutes: item.prep_minutes,
+	})),
+});
 
 function subscribeToClock(callback) {
 	const id = window.setInterval(callback, CLOCK_TICK_MS);
@@ -162,6 +138,46 @@ function formatOrderDate(timestamp, now) {
 
 function Orders() {
 	const now = useNow();
+	const { user } = useStore();
+	const [orders, setOrders] = useState([]);
+	const [loading, setLoading] = useState(Boolean(user));
+	const [error, setError] = useState("");
+
+	useEffect(() => {
+		let active = true;
+
+		if (!user) {
+			return undefined;
+		}
+
+		const load = async () => {
+			try {
+				const data = await getOrders({ activos: 1 });
+				if (active) {
+					setOrders(data.map(mapOrder));
+					setError("");
+				}
+			} catch (requestError) {
+				if (active) {
+					setError(
+						getApiErrorMessage(
+							requestError,
+							"No se pudieron cargar tus pedidos",
+						),
+					);
+				}
+			} finally {
+				if (active) setLoading(false);
+			}
+		};
+
+		load();
+		const interval = window.setInterval(load, ORDERS_REFRESH_MS);
+		return () => {
+			active = false;
+			window.clearInterval(interval);
+		};
+	}, [user]);
 
 	return (
 		<section className="min-h-dvh w-full bg-background px-5 py-8 md:px-10 md:py-12">
@@ -181,17 +197,27 @@ function Orders() {
 					</div>
 					<span className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-4 py-2 text-xs font-medium text-muted">
 						<ClipboardList className="size-4 text-accent" />
-						{ORDERS.length} pedidos activos
+						{orders.length} pedidos activos
 					</span>
 				</header>
 
-				{ORDERS.length > 0 ? (
+				{error && (
+					<p className="mt-6 rounded-xl border border-danger/30 bg-danger/10 px-4 py-2.5 text-sm text-danger">
+						{error}
+					</p>
+				)}
+
+				{loading ? (
+					<p className="mt-8 text-sm text-muted">Cargando tus pedidos...</p>
+				) : orders.length > 0 ? (
 					<>
 						<div className="mt-8 space-y-4">
-							{ORDERS.map((order) => {
-								const status = STATUS[order.estado] ?? STATUS.Confirmado;
+							{orders.map((order) => {
+								const status = STATUS[order.estado] ?? STATUS.confirmado;
 								const StatusIcon = status.icon;
-								const isPreparing = order.estado === "En preparación";
+								const isPreparing = ["confirmado", "preparando"].includes(
+									order.estado,
+								);
 								const timing = getPrepTiming(order, now);
 
 								return (
@@ -222,7 +248,7 @@ function Orders() {
 													className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${status.className}`}
 												>
 													<StatusIcon className="size-3.5" />
-													{order.estado}
+													{order.estadoLabel || status.label}
 												</span>
 												<span className="inline-flex items-center gap-1.5 text-xs text-muted">
 													<Timer className="size-3.5" />
@@ -235,7 +261,7 @@ function Orders() {
 											<ul className="divide-y divide-border">
 												{order.detalles.map((detail) => (
 													<li
-														key={detail.nombre}
+														key={`${order.id}-${detail.nombre}`}
 														className="flex items-center justify-between gap-4 py-2.5 text-sm"
 													>
 														<span className="flex min-w-0 items-center gap-2">
@@ -281,7 +307,7 @@ function Orders() {
 																}`}
 															>
 																{timing.done
-																	? "Listo para repartir"
+																	? "Preparado"
 																	: formatCountdown(timing.remainingMs)}
 															</p>
 														</div>

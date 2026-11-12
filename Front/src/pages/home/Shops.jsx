@@ -1,17 +1,26 @@
 import { useState } from "react";
 import { motion } from "motion/react";
-import { Bike, Clock, Search, SlidersHorizontal, Star } from "lucide-react";
+import { Link } from "react-router";
+import {
+	ArrowRight,
+	Bike,
+	Clock,
+	Search,
+	SlidersHorizontal,
+	Star,
+} from "lucide-react";
 import LazyImage from "../../components/globals/LazyImage";
-import { CATEGORIES, STORES } from "./data";
+import useCatalog from "../../hooks/useCatalog";
 
 const normalize = (value = "") => value.trim().toLowerCase();
 
 function Shops() {
+	const { stores, categories } = useCatalog();
 	const [query, setQuery] = useState("");
 	const [category, setCategory] = useState("Todos");
 	const search = normalize(query);
 
-	const filtered = STORES.filter((store) => {
+	const filtered = stores.filter((store) => {
 		const byCategory = category === "Todos" || store.tags.includes(category);
 		const bySearch =
 			!search ||
@@ -55,7 +64,7 @@ function Shops() {
 					</div>
 					<div className="flex items-center gap-2 overflow-x-auto pb-1">
 						<SlidersHorizontal className="size-4 shrink-0 text-muted" />
-						{CATEGORIES.filter((item) => item.name !== "Todos").map((item) => (
+						{categories.filter((item) => item.name !== "Todos").map((item) => (
 							<button
 								key={item.name}
 								type="button"
@@ -86,9 +95,10 @@ function Shops() {
 					{filtered.map((store) => {
 						const Icon = store.icon;
 						return (
-							<article
+							<Link
 								key={store.id}
-								className="flex flex-col gap-4 p-4 transition-colors hover:bg-default/40 sm:flex-row sm:items-center"
+								to={`/home/tiendas/${store.id}`}
+								className="group flex flex-col gap-4 p-4 transition-colors hover:bg-default/40 sm:flex-row sm:items-center"
 							>
 								<div className="size-20 shrink-0 overflow-hidden rounded-xl">
 									<LazyImage
@@ -97,7 +107,8 @@ function Shops() {
 										className="h-full w-full"
 										fallback={
 											<div
-												className={`flex h-full w-full items-center justify-center bg-linear-to-br ${store.gradient}`}
+												className="flex h-full w-full items-center justify-center"
+												style={{ backgroundImage: store.gradient }}
 											>
 												<Icon className="size-8 text-white/80" />
 											</div>
@@ -138,8 +149,12 @@ function Shops() {
 										<Bike className="size-3.5" />
 										{store.envio}
 									</span>
+									<span className="inline-flex items-center gap-1 font-semibold text-accent">
+										Ver menú
+										<ArrowRight className="size-3.5" />
+									</span>
 								</div>
-							</article>
+							</Link>
 						);
 					})}
 				</div>

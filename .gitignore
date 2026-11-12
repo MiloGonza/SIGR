@@ -6,3 +6,5 @@ __pycache__/
 .opencode
 PRODUCT.md
 graphify-out
+# Archivos subidos por el backend (imágenes de tiendas y platillos)
+Back/media/
