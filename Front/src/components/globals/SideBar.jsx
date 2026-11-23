@@ -3,6 +3,7 @@ import { Avatar, Button, ListBox, Select } from "@heroui/react";
 import { motion } from "motion/react";
 import { CreditCard, LogOut, MapPin, Moon, Sun } from "lucide-react";
 import { Link, useNavigate } from "react-router";
+import useNotificationStore from "../../store/useNotificationStore";
 import useStore from "../../store/useStore";
 import {
 	SIDEBAR_WIDTH,
@@ -29,6 +30,9 @@ const markerTransition = { duration: 0.22, ease: [0.4, 0, 0.2, 1] };
 function SideBar({ user, activePath = "" }) {
 	const [expanded, setExpanded] = useState(false);
 	const { logout, darkMode, setDarkMode, setTriggerCurtain } = useStore();
+	const unreadNotifications = useNotificationStore((state) =>
+		user?.id ? (state.unreadByUser[String(user.id)] ?? 0) : 0,
+	);
 	const navigate = useNavigate();
 
 	const items = getSidebarItems(user?.rol);
@@ -117,6 +121,10 @@ function SideBar({ user, activePath = "" }) {
 					const Icon = item.icon;
 					const active =
 						activePath === item.to || activePath.startsWith(`${item.to}/`);
+					const unread =
+						item.to === "/dashboard/notificaciones"
+							? unreadNotifications
+							: 0;
 
 					return (
 						<Link
@@ -125,7 +133,11 @@ function SideBar({ user, activePath = "" }) {
 							onClick={(event) => {
 								if (active) event.preventDefault();
 							}}
-							aria-label={item.label}
+							aria-label={
+								unread > 0
+									? `${item.label}, ${unread} sin ver`
+									: item.label
+							}
 							aria-current={active ? "page" : undefined}
 							title={expanded ? undefined : item.label}
 							className={`relative flex h-11 shrink-0 items-center gap-3 rounded-xl pl-4 pr-3 transition-colors ${
@@ -151,6 +163,25 @@ function SideBar({ user, activePath = "" }) {
 							>
 								{item.label}
 							</motion.span>
+							{unread > 0 && (
+								<motion.span
+									initial={{ scale: 0.6, opacity: 0 }}
+									animate={{ scale: 1, opacity: 1 }}
+									transition={{
+										type: "spring",
+										stiffness: 400,
+										damping: 28,
+									}}
+									aria-hidden="true"
+									className={
+										expanded
+											? "absolute top-1/2 right-2 flex h-5 min-w-5 -translate-y-1/2 items-center justify-center rounded-full bg-accent px-1.5 text-[10px] font-bold text-accent-foreground"
+											: "absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent px-1 text-[9px] font-bold text-accent-foreground"
+									}
+								>
+									{unread > 99 ? "99+" : unread}
+								</motion.span>
+							)}
 						</Link>
 					);
 				})}

@@ -80,6 +80,9 @@ class OrderSerializer(serializers.ModelSerializer):
 	items = OrderItemSerializer(many=True, read_only=True)
 	tienda = serializers.CharField(source="restaurante.nombre", read_only=True)
 	estado_label = serializers.CharField(source="get_estado_display", read_only=True)
+	tipo_pedido_label = serializers.CharField(
+		source="get_tipo_pedido_display", read_only=True
+	)
 	ready_at = serializers.DateTimeField(read_only=True)
 	metodo_pago = serializers.CharField(
 		source="metodo_pago_resumen", read_only=True, default=""
@@ -92,6 +95,9 @@ class OrderSerializer(serializers.ModelSerializer):
 			"numero",
 			"restaurante",
 			"tienda",
+			"tipo_pedido",
+			"tipo_pedido_label",
+			"mesa",
 			"direccion_entrega",
 			"ciudad_entrega",
 			"metodo_pago",
@@ -110,12 +116,55 @@ class OrderSerializer(serializers.ModelSerializer):
 		]
 
 
+class StaffOrderSerializer(OrderSerializer):
+	"""Pedido con los datos que necesita el equipo del restaurante."""
+
+	cliente = serializers.SerializerMethodField()
+	items_count = serializers.SerializerMethodField()
+
+	class Meta(OrderSerializer.Meta):
+		fields = OrderSerializer.Meta.fields + ["cliente", "items_count"]
+
+	def get_cliente(self, obj):
+		return obj.user.get_full_name().strip() or obj.user.username
+
+	def get_items_count(self, obj):
+		return sum(item.cantidad for item in obj.items.all())
+
+
 class CheckoutSerializer(serializers.Serializer):
-	address = serializers.PrimaryKeyRelatedField(queryset=Address.objects.all())
+	tipo_pedido = serializers.ChoiceField(
+		choices=Order.TIPO_CHOICES, default=Order.DOMICILIO
+	)
+	mesa = serializers.CharField(required=False, allow_blank=True, max_length=20)
+	address = serializers.PrimaryKeyRelatedField(
+		queryset=Address.objects.all(), required=False, allow_null=True
+	)
 	payment_method = serializers.PrimaryKeyRelatedField(
 		queryset=PaymentMethod.objects.all(), required=False, allow_null=True
 	)
 	notas = serializers.CharField(required=False, allow_blank=True, max_length=500)
+
+	def validate(self, attrs):
+		tipo = attrs.get("tipo_pedido", Order.DOMICILIO)
+		if tipo == Order.DOMICILIO:
+			if not attrs.get("address"):
+				raise serializers.ValidationError(
+					{"address": "Selecciona una dirección de entrega."}
+				)
+			attrs["mesa"] = ""
+		elif tipo == Order.MESA:
+			mesa = (attrs.get("mesa") or "").strip()
+			if not mesa:
+				raise serializers.ValidationError(
+					{"mesa": "Indica el número o nombre de la mesa."}
+				)
+			attrs["mesa"] = mesa
+			attrs["address"] = None
+		else:
+			attrs["mesa"] = ""
+			attrs["address"] = None
+		return attrs
 
 
 class OrderStatusSerializer(serializers.Serializer):

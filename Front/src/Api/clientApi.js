@@ -60,6 +60,16 @@ export const getDashboardStats = (dias = 30) =>
 		.get("/orders/stats/", { params: { dias } })
 		.then((response) => response.data);
 
+export const getStaffOrders = (params = {}) =>
+	api
+		.get("/orders/staff/", { params })
+		.then((response) => asList(response.data));
+
+export const updateOrderStatus = (id, estado) =>
+	api
+		.patch(`/orders/${id}/status/`, { estado })
+		.then((response) => response.data);
+
 export const getOrder = (id) =>
 	api.get(`/orders/${id}/`).then((response) => response.data);
 
@@ -93,6 +103,25 @@ export const deleteRecipe = (id) =>
 	api.delete(`/restaurants/recipes/${id}/`).then((response) => response.data);
 
 /* ------------------------------------------------------------------ */
+/* Disponibilidad del personal (administrador y mesero)                */
+/* ------------------------------------------------------------------ */
+
+export const getStaffAvailability = () =>
+	api
+		.get("/restaurants/availability/")
+		.then((response) => asList(response.data));
+
+export const updateStaffAvailability = (id, data) =>
+	api
+		.patch(`/restaurants/availability/${id}/`, data)
+		.then((response) => response.data);
+
+export const getStaffNotifications = () =>
+	api
+		.get("/restaurants/notifications/")
+		.then((response) => asList(response.data));
+
+/* ------------------------------------------------------------------ */
 /* Equipo del restaurante                                              */
 /* ------------------------------------------------------------------ */
 
@@ -109,6 +138,22 @@ export const updateEmployee = (id, data) =>
 
 export const deleteEmployee = (id) =>
 	api.delete(`/users/employees/${id}/`).then((response) => response.data);
+
+/* ------------------------------------------------------------------ */
+/* Turnos del equipo                                                   */
+/* ------------------------------------------------------------------ */
+
+export const getShifts = (params = {}) =>
+	api.get("/shifts/", { params }).then((response) => asList(response.data));
+
+export const createShift = (data) =>
+	api.post("/shifts/", data).then((response) => response.data);
+
+export const updateShift = (id, data) =>
+	api.patch(`/shifts/${id}/`, data).then((response) => response.data);
+
+export const deleteShift = (id) =>
+	api.delete(`/shifts/${id}/`).then((response) => response.data);
 
 /* ------------------------------------------------------------------ */
 /* Direcciones                                                         */

@@ -12,7 +12,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from users.models import Address, PaymentMethod, Profile
-from restaurants.models import Dish
+from restaurants.models import Dish, Notification
 
 from .models import Cart, CartItem, Order, OrderItem
 from .serializers import (
@@ -21,8 +21,26 @@ from .serializers import (
 	CheckoutSerializer,
 	OrderSerializer,
 	OrderStatusSerializer,
+	StaffOrderSerializer,
 	UpdateCartItemSerializer,
 )
+
+
+ACTIVE_ORDER_STATES = (
+	Order.PENDIENTE,
+	Order.CONFIRMADO,
+	Order.PREPARANDO,
+	Order.EN_CAMINO,
+)
+
+ORDER_TRANSITIONS = {
+	Order.PENDIENTE: {Order.CONFIRMADO, Order.PREPARANDO, Order.CANCELADO},
+	Order.CONFIRMADO: {Order.PREPARANDO, Order.CANCELADO},
+	Order.PREPARANDO: {Order.EN_CAMINO, Order.ENTREGADO, Order.CANCELADO},
+	Order.EN_CAMINO: {Order.ENTREGADO, Order.CANCELADO},
+	Order.ENTREGADO: set(),
+	Order.CANCELADO: set(),
+}
 
 
 def get_cart(user):
@@ -203,12 +221,25 @@ def orders(request):
 	if not serializer.is_valid():
 		return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-	address = serializer.validated_data["address"]
-	if address.user_id != request.user.id:
-		return Response(
-			{"address": ["La dirección no pertenece a este usuario."]},
-			status=status.HTTP_400_BAD_REQUEST,
-		)
+	tipo_pedido = serializer.validated_data["tipo_pedido"]
+	address = serializer.validated_data.get("address")
+	if tipo_pedido == Order.DOMICILIO:
+		if not address or address.user_id != request.user.id:
+			return Response(
+				{"address": ["Selecciona una dirección de entrega válida."]},
+				status=status.HTTP_400_BAD_REQUEST,
+			)
+		direccion_entrega = address.direccion
+		ciudad_entrega = address.ciudad
+	else:
+		address = None
+		if tipo_pedido == Order.MESA:
+			direccion_entrega = (
+				f"Mesa {serializer.validated_data.get('mesa', '')}"
+			)
+		else:
+			direccion_entrega = "Para llevar"
+		ciudad_entrega = ""
 
 	payment_method = serializer.validated_data.get("payment_method")
 	if payment_method and payment_method.user_id != request.user.id:
@@ -260,23 +291,32 @@ def orders(request):
 				)
 
 		subtotal = sum((item.subtotal for item in items), Decimal("0.00"))
-		envio = cart.envio
+		envio = (
+			cart.envio if tipo_pedido == Order.DOMICILIO else Decimal("0.00")
+		)
 		prep_minutes = max(item.dish.prep_minutes for item in items)
+		if payment_method:
+			metodo_pago_resumen = payment_summary(payment_method)
+		elif tipo_pedido == Order.DOMICILIO:
+			metodo_pago_resumen = "Pago contra entrega"
+		else:
+			metodo_pago_resumen = "Pago en el local"
 
 		order = Order.objects.create(
 			user=request.user,
 			restaurante=cart.restaurante,
 			address=address,
-			direccion_entrega=address.direccion,
-			ciudad_entrega=address.ciudad,
+			direccion_entrega=direccion_entrega,
+			ciudad_entrega=ciudad_entrega,
 			payment_method=payment_method,
-			metodo_pago_resumen=payment_summary(payment_method),
-			estado=Order.CONFIRMADO,
+			metodo_pago_resumen=metodo_pago_resumen,
+			tipo_pedido=tipo_pedido,
+			mesa=serializer.validated_data.get("mesa", ""),
+			estado=Order.PENDIENTE,
 			subtotal=subtotal,
 			envio=envio,
 			total=subtotal + envio,
 			notas=serializer.validated_data.get("notas", ""),
-			accepted_at=timezone.now(),
 			prep_minutes=prep_minutes,
 		)
 		OrderItem.objects.bulk_create(
@@ -292,6 +332,7 @@ def orders(request):
 				for item in items
 			]
 		)
+		# El stock se reserva al confirmar el pedido y se devuelve al cancelarlo.
 		for item in items:
 			dish = locked_dishes[item.dish_id]
 			dish.stock -= item.cantidad
@@ -299,6 +340,17 @@ def orders(request):
 		cart.items.all().delete()
 		cart.restaurante = None
 		cart.save(update_fields=["restaurante"])
+
+		total_txt = f"{order.total:,.0f}".replace(",", ".")
+		Notification.objects.create(
+			restaurante=order.restaurante,
+			actor=request.user,
+			tipo=Notification.PEDIDO,
+			mensaje=(
+				f"Nuevo pedido {order.numero} · "
+				f"{order.get_tipo_pedido_display()} · ${total_txt}"
+			),
+		)
 
 	order = (
 		Order.objects.filter(pk=order.pk)
@@ -314,15 +366,58 @@ def orders(request):
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
+def staff_orders(request):
+	"""Pedidos de la tienda del mesero o administrador autenticado."""
+	if not user_is_restaurant_staff(request.user):
+		return Response(
+			{"detail": "No tienes permiso para consultar los pedidos del local."},
+			status=status.HTTP_403_FORBIDDEN,
+		)
+
+	profile = request.user.profile
+	queryset = (
+		Order.objects.filter(restaurante=profile.restaurante)
+		.select_related("user", "restaurante")
+		.prefetch_related("items")
+	)
+
+	tipo = request.query_params.get("tipo")
+	if tipo in dict(Order.TIPO_CHOICES):
+		queryset = queryset.filter(tipo_pedido=tipo)
+
+	alcance = request.query_params.get("alcance", "activos")
+	if alcance == "historial":
+		queryset = queryset.filter(
+			estado__in=(Order.ENTREGADO, Order.CANCELADO)
+		).order_by("-created_at")[:80]
+	elif alcance == "todos":
+		queryset = queryset.order_by("-created_at")[:200]
+	else:
+		queryset = queryset.filter(estado__in=ACTIVE_ORDER_STATES).order_by(
+			"created_at"
+		)[:120]
+
+	return Response(
+		StaffOrderSerializer(
+			queryset, many=True, context={"request": request}
+		).data
+	)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def order_detail(request, pk):
 	order = get_object_or_404(
 		Order.objects.select_related("restaurante").prefetch_related("items"),
 		pk=pk,
 	)
-	if order.user_id != request.user.id and not user_is_restaurant_staff(
-		request.user
-	):
-		return Response(status=status.HTTP_404_NOT_FOUND)
+	if order.user_id != request.user.id:
+		profile = getattr(request.user, "profile", None)
+		if not (
+			user_is_restaurant_staff(request.user)
+			and order.restaurante_id == profile.restaurante_id
+		):
+			return Response(status=status.HTTP_404_NOT_FOUND)
 	return Response(OrderSerializer(order, context={"request": request}).data)
 
 
@@ -336,13 +431,12 @@ def update_order_status(request, pk):
 			status=status.HTTP_403_FORBIDDEN,
 		)
 
-	order = get_object_or_404(Order, pk=pk)
 	profile = request.user.profile
-	if profile.rol != Profile.ADMINISTRADOR and order.restaurante_id != profile.restaurante_id:
-		return Response(
-			{"detail": "Este pedido no pertenece a tu local."},
-			status=status.HTTP_403_FORBIDDEN,
-		)
+	order = get_object_or_404(
+		Order.objects.prefetch_related("items"),
+		pk=pk,
+		restaurante=profile.restaurante,
+	)
 
 	serializer = OrderStatusSerializer(data=request.data)
 	if not serializer.is_valid():
@@ -350,8 +444,22 @@ def update_order_status(request, pk):
 
 	estado = serializer.validated_data["estado"]
 	anterior = order.estado
+	if estado != anterior and estado not in ORDER_TRANSITIONS.get(anterior, set()):
+		return Response(
+			{
+				"detail": (
+					f"No se puede pasar el pedido de "
+					f"«{order.get_estado_display()}» a "
+					f"«{dict(Order.ESTADO_CHOICES)[estado]}»."
+				)
+			},
+			status=status.HTTP_400_BAD_REQUEST,
+		)
+
 	order.estado = estado
 	if estado == Order.PREPARANDO and not order.accepted_at:
+		order.accepted_at = timezone.now()
+	if estado == Order.EN_CAMINO and not order.accepted_at:
 		order.accepted_at = timezone.now()
 	if estado == Order.ENTREGADO:
 		order.delivered_at = timezone.now()
@@ -364,7 +472,9 @@ def update_order_status(request, pk):
 				Dish.objects.filter(pk=item.dish_id).update(
 					stock=F("stock") + item.cantidad
 				)
-	return Response(OrderSerializer(order, context={"request": request}).data)
+	return Response(
+		StaffOrderSerializer(order, context={"request": request}).data
+	)
 
 
 def admin_profile_for_stats(user):

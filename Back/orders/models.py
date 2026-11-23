@@ -90,6 +90,16 @@ class Order(models.Model):
 		(CANCELADO, "Cancelado"),
 	]
 
+	MESA = "mesa"
+	DOMICILIO = "domicilio"
+	LLEVAR = "llevar"
+
+	TIPO_CHOICES = [
+		(MESA, "En mesa"),
+		(DOMICILIO, "Domicilio"),
+		(LLEVAR, "Para llevar"),
+	]
+
 	id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 	numero = models.CharField(max_length=20, unique=True, editable=False)
 	user = models.ForeignKey(
@@ -109,6 +119,10 @@ class Order(models.Model):
 		blank=True,
 		related_name="orders",
 	)
+	tipo_pedido = models.CharField(
+		max_length=20, choices=TIPO_CHOICES, default=DOMICILIO
+	)
+	mesa = models.CharField(max_length=20, blank=True)
 	direccion_entrega = models.CharField(max_length=200)
 	ciudad_entrega = models.CharField(max_length=100, blank=True)
 	payment_method = models.ForeignKey(
@@ -119,7 +133,7 @@ class Order(models.Model):
 		related_name="orders",
 	)
 	metodo_pago_resumen = models.CharField(max_length=120, blank=True)
-	estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=CONFIRMADO)
+	estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default=PENDIENTE)
 	subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 	envio = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 	total = models.DecimalField(max_digits=10, decimal_places=2, default=0)

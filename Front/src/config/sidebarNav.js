@@ -1,4 +1,5 @@
 import {
+	Bell,
 	CalendarClock,
 	ChefHat,
 	ClipboardList,
@@ -55,10 +56,22 @@ export const SIDEBAR_ITEMS = {
 			description: "Administra el equipo de tu restaurante y sus roles.",
 		},
 		{
+			to: "/dashboard/turnos",
+			label: "Turnos",
+			icon: CalendarClock,
+			description: "Programa y organiza los turnos de tu equipo.",
+		},
+		{
 			to: "/dashboard/recetas",
 			label: "Recetas",
 			icon: ChefHat,
 			description: "Organiza las recetas y preparaciones de tu menú.",
+		},
+		{
+			to: "/dashboard/notificaciones",
+			label: "Notificaciones",
+			icon: Bell,
+			description: "Revisa los cambios de disponibilidad de tu equipo.",
 		},
 	],
 	mesero: [
@@ -79,6 +92,12 @@ export const SIDEBAR_ITEMS = {
 			label: "Disponibilidad",
 			icon: PackageSearch,
 			description: "Revisa el stock y la disponibilidad de los productos.",
+		},
+		{
+			to: "/dashboard/notificaciones",
+			label: "Notificaciones",
+			icon: Bell,
+			description: "Consulta los avisos de disponibilidad de tu tienda.",
 		},
 	],
 };

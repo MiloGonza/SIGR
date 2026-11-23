@@ -310,12 +310,35 @@ class Command(BaseCommand):
 			if restaurante.free_shipping
 			else Decimal(restaurante.shipping_cost)
 		)
+		tipo_pedido = random.choices(
+			[Order.MESA, Order.DOMICILIO, Order.LLEVAR], [0.45, 0.4, 0.15]
+		)[0]
+		if estado == Order.EN_CAMINO:
+			# Un pedido en camino siempre es un domicilio.
+			tipo_pedido = Order.DOMICILIO
+		if tipo_pedido == Order.MESA:
+			mesa = str(random.randint(1, 12))
+			direccion = "Salón"
+			ciudad = ""
+			envio = Decimal("0.00")
+		elif tipo_pedido == Order.LLEVAR:
+			mesa = ""
+			direccion = "Mostrador"
+			ciudad = ""
+			envio = Decimal("0.00")
+		else:
+			mesa = ""
+			direccion = random.choice(DIRECCIONES)
+			ciudad = random.choice(CIUDADES)
+
 		order = Order(
 			numero=f"{DEMO_PREFIX}{uuid.uuid4().hex[:8].upper()}",
 			user=cliente,
 			restaurante=restaurante,
-			direccion_entrega=random.choice(DIRECCIONES),
-			ciudad_entrega=random.choice(CIUDADES),
+			tipo_pedido=tipo_pedido,
+			mesa=mesa,
+			direccion_entrega=direccion,
+			ciudad_entrega=ciudad,
 			metodo_pago_resumen=random.choice(METODOS_PAGO),
 			estado=estado,
 			subtotal=subtotal,

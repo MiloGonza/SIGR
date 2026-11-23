@@ -8,7 +8,9 @@ import {
 	ClipboardList,
 	Clock,
 	MapPin,
+	ShoppingBag,
 	Store,
+	Table2,
 	Timer,
 } from "lucide-react";
 import { getApiErrorMessage, getOrders } from "../../Api/clientApi";
@@ -61,6 +63,12 @@ const STATUS = {
 	},
 };
 
+const TYPE_ICONS = {
+	domicilio: Bike,
+	mesa: Table2,
+	llevar: ShoppingBag,
+};
+
 const mapOrder = (order) => ({
 	id: order.numero,
 	tienda: order.tienda,
@@ -69,6 +77,7 @@ const mapOrder = (order) => ({
 	estado: order.estado,
 	estadoLabel: order.estado_label,
 	total: formatCOP(order.total),
+	tipo: order.tipo_pedido,
 	entrega: order.direccion_entrega,
 	detalles: (order.items ?? []).map((item) => ({
 		nombre: item.nombre,
@@ -215,6 +224,7 @@ function Orders() {
 							{orders.map((order) => {
 								const status = STATUS[order.estado] ?? STATUS.confirmado;
 								const StatusIcon = status.icon;
+								const TypeIcon = TYPE_ICONS[order.tipo] ?? MapPin;
 								const isPreparing = ["confirmado", "preparando"].includes(
 									order.estado,
 								);
@@ -339,7 +349,7 @@ function Orders() {
 
 											<div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
 												<span className="inline-flex items-center gap-1.5 text-xs text-muted">
-													<MapPin className="size-3.5" />
+													<TypeIcon className="size-3.5" />
 													{order.entrega}
 												</span>
 												<div className="flex items-baseline gap-2">

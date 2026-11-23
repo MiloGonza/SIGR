@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react'
 import { lazy, Suspense, useState, useEffect } from 'react'
 import NavBar from './components/globals/NavBar'
 import SideBar from './components/globals/SideBar'
+import StaffNotificationToasts from './components/staff/StaffNotificationToasts'
 import useStore from './store/useStore'
 import LandingPage from './pages/landingPage/LandingPage'
 import LoginRegisterModal from './components/loginRegister/LoginRegisterModal'
@@ -19,6 +20,7 @@ import Recipes from './pages/dashboard/admin/Recipes'
 import EmployOrders from './pages/dashboard/employ/Orders'
 import Schedule from './pages/dashboard/employ/Schedule'
 import Stock from './pages/dashboard/employ/Stock'
+import Notifications from './pages/dashboard/employ/Notifications'
 import { SIDEBAR_WIDTH, getDefaultWorkspacePath, isWorkspacePath, normalizeRole } from './config/sidebarNav'
 
 // ECharts pesa bastante: solo se descarga cuando el administrador abre el resumen.
@@ -155,6 +157,7 @@ function App() {
 				style={{ pointerEvents: contentVisible ? 'auto' : 'none' }}
 			>
 				<LoginRegisterModal isOpen={isOpen} setIsOpen={setIsOpen} mode={mode} setMode={setMode} />
+				{showSideBar && <StaffNotificationToasts key={sidebarUser?.id} />}
 				{showSideBar ? <SideBar user={sidebarUser} activePath={displayLocation.pathname} /> : <NavBar />}
 				<div
 					className="min-h-dvh"
@@ -251,6 +254,11 @@ function App() {
 							<Route path="/dashboard/disponibilidad" element={
 								<Page>
 									<Stock />
+								</Page>
+							} />
+							<Route path="/dashboard/notificaciones" element={
+								<Page>
+									<Notifications />
 								</Page>
 							} />
 						</Route>

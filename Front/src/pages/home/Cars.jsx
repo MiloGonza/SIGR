@@ -2,13 +2,17 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import {
 	ArrowRight,
+	Bike,
 	CreditCard,
 	MapPin,
 	Minus,
 	Plus,
+	ShoppingBag,
 	ShoppingCart,
+	Table2,
 	Trash2,
 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import {
 	checkout,
 	clearCart,
@@ -24,6 +28,12 @@ import useStore from "../../store/useStore";
 import useCartStore from "../../store/useCartStore";
 import { formatCOP } from "../../utils/format";
 
+const ORDER_TYPES = [
+	{ id: "domicilio", label: "Domicilio", icon: Bike },
+	{ id: "llevar", label: "Para llevar", icon: ShoppingBag },
+	{ id: "mesa", label: "Mesa", icon: Table2 },
+];
+
 function Cars() {
 	const navigate = useNavigate();
 	const { user, setIsOpen } = useStore();
@@ -32,6 +42,8 @@ function Cars() {
 	const [payments, setPayments] = useState([]);
 	const [addressId, setAddressId] = useState("");
 	const [paymentId, setPaymentId] = useState("");
+	const [orderType, setOrderType] = useState("domicilio");
+	const [mesa, setMesa] = useState("");
 	const [loading, setLoading] = useState(Boolean(user));
 	const [busyId, setBusyId] = useState(null);
 	const [placing, setPlacing] = useState(false);
@@ -86,6 +98,24 @@ function Cars() {
 
 	const items = cart?.items ?? [];
 	const isEmpty = items.length === 0;
+	const isDomicilio = orderType === "domicilio";
+	const isMesa = orderType === "mesa";
+	const subtotal = Number(cart?.subtotal ?? 0);
+	const shipping = isDomicilio ? Number(cart?.envio ?? 0) : 0;
+	const total = subtotal + shipping;
+
+	const handleTypeChange = (nextType) => {
+		setOrderType(nextType);
+		setError("");
+		if (nextType !== "mesa") setMesa("");
+		if (nextType === "domicilio") {
+			setPaymentId(
+				payments.find((item) => item.is_default)?.id ?? payments[0]?.id ?? "",
+			);
+		} else {
+			setPaymentId("");
+		}
+	};
 
 	const changeQuantity = async (item, delta) => {
 		const next = item.cantidad + delta;
@@ -132,15 +162,21 @@ function Cars() {
 	};
 
 	const handleCheckout = async () => {
-		if (!addressId) {
+		if (isDomicilio && !addressId) {
 			setError("Agrega una dirección de entrega antes de confirmar el pedido.");
+			return;
+		}
+		if (isMesa && !mesa.trim()) {
+			setError("Indica el número o nombre de la mesa.");
 			return;
 		}
 		setError("");
 		setPlacing(true);
 		try {
 			await checkout({
-				address: Number(addressId),
+				tipo_pedido: orderType,
+				mesa: isMesa ? mesa.trim() : "",
+				address: isDomicilio && addressId ? Number(addressId) : null,
 				payment_method: paymentId ? Number(paymentId) : null,
 			});
 			useCartStore.getState().reset();
@@ -322,54 +358,134 @@ function Cars() {
 						<h2 className="text-lg font-semibold text-foreground">
 							Resumen del pedido
 						</h2>
+
+						<p className="mt-4 text-[11px] font-semibold tracking-[0.14em] text-muted uppercase">
+							Tipo de pedido
+						</p>
+						<div className="mt-2 grid grid-cols-3 gap-2">
+							{ORDER_TYPES.map((type) => {
+								const Icon = type.icon;
+								const active = orderType === type.id;
+								return (
+									<motion.button
+										key={type.id}
+										type="button"
+										onClick={() => handleTypeChange(type.id)}
+										aria-pressed={active}
+										whileTap={{ scale: 0.97 }}
+										className={`flex flex-col items-center gap-1.5 rounded-xl border px-2 py-3 text-[11px] font-semibold transition-colors ${
+											active
+												? "border-accent bg-accent/10 text-accent"
+												: "border-border bg-surface text-muted hover:border-accent/40 hover:text-foreground"
+										}`}
+									>
+										<Icon className="size-4" />
+										{type.label}
+									</motion.button>
+								);
+							})}
+						</div>
+
 						<div className="mt-4 space-y-3 text-sm">
 							<div className="flex items-center justify-between text-muted">
 								<span>Subtotal</span>
-								<span className="text-foreground">
-									{formatCOP(cart?.subtotal ?? 0)}
-								</span>
+								<span className="text-foreground">{formatCOP(subtotal)}</span>
 							</div>
 							<div className="flex items-center justify-between text-muted">
 								<span>Envío</span>
 								<span className="text-foreground">
-									{cart && Number(cart.envio) === 0
-										? "Gratis"
-										: formatCOP(cart?.envio ?? 0)}
+									{!isDomicilio
+										? "No aplica"
+										: shipping === 0
+											? "Gratis"
+											: formatCOP(shipping)}
 								</span>
 							</div>
 							<div className="border-t border-border pt-3">
 								<div className="flex items-center justify-between font-semibold text-foreground">
 									<span>Total</span>
-									<span className="text-accent">
-										{formatCOP(cart?.total ?? 0)}
-									</span>
+									<span className="text-accent">{formatCOP(total)}</span>
 								</div>
 							</div>
 						</div>
 
 						{user && (
 							<div className="mt-5 space-y-3">
-								<label className="block text-xs font-semibold text-muted">
-									<span className="mb-1.5 flex items-center gap-1.5">
-										<MapPin className="size-3.5" />
-										Dirección de entrega
-									</span>
-									<select
-										value={addressId}
-										onChange={(event) => setAddressId(event.target.value)}
-										className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+								<AnimatePresence mode="wait" initial={false}>
+									<motion.div
+										key={orderType}
+										initial={{ opacity: 0, y: 6 }}
+										animate={{ opacity: 1, y: 0 }}
+										exit={{ opacity: 0, y: -6 }}
+										transition={{ duration: 0.18 }}
 									>
-										{addresses.length === 0 ? (
-											<option value="">Sin direcciones guardadas</option>
-										) : (
-											addresses.map((address) => (
-												<option key={address.id} value={address.id}>
-													{address.alias} · {address.direccion}
-												</option>
-											))
+										{isDomicilio && (
+											<>
+												<label className="block text-xs font-semibold text-muted">
+													<span className="mb-1.5 flex items-center gap-1.5">
+														<MapPin className="size-3.5" />
+														Dirección de entrega
+													</span>
+													<select
+														value={addressId}
+														onChange={(event) =>
+															setAddressId(event.target.value)
+														}
+														className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+													>
+														{addresses.length === 0 ? (
+															<option value="">Sin direcciones guardadas</option>
+														) : (
+															addresses.map((address) => (
+																<option key={address.id} value={address.id}>
+																	{address.alias} · {address.direccion}
+																</option>
+															))
+														)}
+													</select>
+												</label>
+												{addresses.length === 0 && (
+													<Link
+														to="/home/direcciones"
+														className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline"
+													>
+														Agregar una dirección
+														<ArrowRight className="size-3.5" />
+													</Link>
+												)}
+											</>
 										)}
-									</select>
-								</label>
+
+										{isMesa && (
+											<label className="block text-xs font-semibold text-muted">
+												<span className="mb-1.5 flex items-center gap-1.5">
+													<Table2 className="size-3.5" />
+													Número o nombre de la mesa
+												</span>
+												<input
+													value={mesa}
+													onChange={(event) => setMesa(event.target.value)}
+													placeholder="Ej. 4, Terraza 2"
+													maxLength={20}
+													className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+												/>
+												<span className="mt-1.5 block text-[11px] font-normal text-muted">
+													El pedido llegará a la mesa que indiques.
+												</span>
+											</label>
+										)}
+
+										{orderType === "llevar" && (
+											<p className="rounded-xl border border-border bg-surface-secondary px-3 py-2.5 text-xs text-muted">
+												Recoge tu pedido en el mostrador de{" "}
+												<span className="font-semibold text-foreground">
+													{cart?.tienda}
+												</span>
+												.
+											</p>
+										)}
+									</motion.div>
+								</AnimatePresence>
 
 								<label className="block text-xs font-semibold text-muted">
 									<span className="mb-1.5 flex items-center gap-1.5">
@@ -381,7 +497,9 @@ function Cars() {
 										onChange={(event) => setPaymentId(event.target.value)}
 										className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
 									>
-										<option value="">Pago contra entrega</option>
+										<option value="">
+											{isDomicilio ? "Pago contra entrega" : "Pago en el local"}
+										</option>
 										{payments.map((payment) => (
 											<option key={payment.id} value={payment.id}>
 												{payment.alias}
@@ -392,16 +510,6 @@ function Cars() {
 										))}
 									</select>
 								</label>
-
-								{addresses.length === 0 && (
-									<Link
-										to="/home/direcciones"
-										className="inline-flex items-center gap-1 text-xs font-semibold text-accent hover:underline"
-									>
-										Agregar una dirección
-										<ArrowRight className="size-3.5" />
-									</Link>
-								)}
 							</div>
 						)}
 

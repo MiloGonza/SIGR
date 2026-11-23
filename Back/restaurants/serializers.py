@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
-from .models import Category, Dish, Restaurant
+from .models import Category, Dish, Notification, Restaurant
 
 
 class RestaurantSerializer(serializers.ModelSerializer):
@@ -160,3 +160,83 @@ class AdminDishSerializer(serializers.ModelSerializer):
 		if not nombre:
 			raise serializers.ValidationError("El nombre no puede estar vacío.")
 		return nombre
+
+
+class StaffDishSerializer(serializers.ModelSerializer):
+	"""Platillo que el personal del restaurante ve en Disponibilidad."""
+
+	categoria_nombre = serializers.CharField(
+		source="categoria.nombre", read_only=True, default=""
+	)
+
+	class Meta:
+		model = Dish
+		fields = [
+			"id",
+			"categoria",
+			"categoria_nombre",
+			"nombre",
+			"descripcion",
+			"precio",
+			"etiqueta",
+			"prep_minutes",
+			"stock",
+			"image",
+			"icon",
+			"gradient",
+			"is_active",
+		]
+		read_only_fields = fields
+
+
+class StaffDishUpdateSerializer(serializers.Serializer):
+	"""Solo permite mover stock y disponibilidad desde el panel del empleado."""
+
+	stock = serializers.IntegerField(min_value=0, max_value=9999, required=False)
+	is_active = serializers.BooleanField(required=False)
+
+	def validate(self, attrs):
+		if not attrs:
+			raise serializers.ValidationError(
+				"Indica el stock o la disponibilidad que quieres cambiar."
+			)
+		return attrs
+
+
+class StaffNotificationSerializer(serializers.ModelSerializer):
+	"""Aviso de disponibilidad visible para el personal de una tienda."""
+
+	actor_id = serializers.SerializerMethodField()
+	actor_nombre = serializers.SerializerMethodField()
+	dish_id = serializers.SerializerMethodField()
+	dish_nombre = serializers.SerializerMethodField()
+	tipo_label = serializers.CharField(source="get_tipo_display", read_only=True)
+
+	class Meta:
+		model = Notification
+		fields = [
+			"id",
+			"tipo",
+			"tipo_label",
+			"mensaje",
+			"dish_id",
+			"dish_nombre",
+			"actor_id",
+			"actor_nombre",
+			"created_at",
+		]
+
+	def get_actor_id(self, obj):
+		return obj.actor_id
+
+	def get_actor_nombre(self, obj):
+		if not obj.actor:
+			return "Sistema"
+		return obj.actor.get_full_name() or obj.actor.username
+
+	def get_dish_id(self, obj):
+		return obj.dish_id
+
+	def get_dish_nombre(self, obj):
+		return obj.dish.nombre if obj.dish else ""
+

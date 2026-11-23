@@ -1,5 +1,6 @@
 import uuid
 
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 from django.utils.text import slugify
@@ -109,3 +110,58 @@ class Dish(models.Model):
 
 	def __str__(self):
 		return f"{self.nombre} - {self.restaurante}"
+
+
+class Notification(models.Model):
+	"""Aviso interno para el personal de una tienda."""
+
+	NO_DISPONIBLE = "no_disponible"
+	DISPONIBLE = "disponible"
+	AGOTADO = "agotado"
+	STOCK = "stock"
+	PEDIDO = "pedido"
+
+	TIPO_CHOICES = [
+		(NO_DISPONIBLE, "No disponible"),
+		(DISPONIBLE, "Disponible"),
+		(AGOTADO, "Agotado"),
+		(STOCK, "Stock actualizado"),
+		(PEDIDO, "Nuevo pedido"),
+	]
+
+	restaurante = models.ForeignKey(
+		Restaurant,
+		on_delete=models.CASCADE,
+		related_name="notificaciones",
+	)
+	dish = models.ForeignKey(
+		Dish,
+		on_delete=models.SET_NULL,
+		null=True,
+		blank=True,
+		related_name="notificaciones",
+	)
+	actor = models.ForeignKey(
+		settings.AUTH_USER_MODEL,
+		on_delete=models.SET_NULL,
+		null=True,
+		blank=True,
+		related_name="notificaciones_staff",
+	)
+	tipo = models.CharField(
+		max_length=20, choices=TIPO_CHOICES, default=NO_DISPONIBLE
+	)
+	mensaje = models.CharField(max_length=255)
+	created_at = models.DateTimeField(auto_now_add=True)
+
+	class Meta:
+		ordering = ["-created_at", "-id"]
+		indexes = [
+			models.Index(
+				fields=["restaurante", "-created_at"],
+				name="notif_rest_created_idx",
+			)
+		]
+
+	def __str__(self):
+		return f"{self.restaurante} · {self.mensaje}"
