@@ -5,6 +5,16 @@ from . import views
 urlpatterns = [
 	path("", views.get_restaurants, name="restaurant-list"),
 	path("categories/", views.get_categories, name="category-list"),
+	path(
+		"categories/manage/",
+		views.admin_categories,
+		name="admin-category-list",
+	),
+	path(
+		"categories/manage/<int:pk>/",
+		views.admin_category_detail,
+		name="admin-category-detail",
+	),
 	path("dishes/", views.get_dishes, name="dish-list"),
 	path("recipes/", views.recipes, name="recipe-list"),
 	path("recipes/<int:pk>/", views.recipe_detail, name="recipe-detail"),

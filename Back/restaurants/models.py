@@ -6,9 +6,9 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 
-def unique_slug(model, value, instance_pk=None):
+def unique_slug(model, value, instance_pk=None, fallback="restaurante"):
 	"""Genera un slug único para los modelos que lo usan."""
-	base = slugify(value) or "restaurante"
+	base = slugify(value) or fallback
 	slug = base
 	counter = 2
 	while model.objects.filter(slug=slug).exclude(pk=instance_pk).exists():
@@ -66,8 +66,20 @@ class Category(models.Model):
 		verbose_name_plural = "categories"
 
 	def save(self, *args, **kwargs):
-		if not self.slug:
-			self.slug = slugify(self.nombre) or "categoria"
+		nombre_anterior = None
+		if self.pk:
+			nombre_anterior = (
+				type(self)
+				.objects.filter(pk=self.pk)
+				.values_list("nombre", flat=True)
+				.first()
+			)
+		if not self.slug or (
+			nombre_anterior is not None and nombre_anterior != self.nombre
+		):
+			self.slug = unique_slug(
+				type(self), self.nombre, self.pk, fallback="categoria"
+			)
 		super().save(*args, **kwargs)
 
 	def __str__(self):

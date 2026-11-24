@@ -103,6 +103,30 @@ export const deleteRecipe = (id) =>
 	api.delete(`/restaurants/recipes/${id}/`).then((response) => response.data);
 
 /* ------------------------------------------------------------------ */
+/* Categorías (administrador)                                          */
+/* ------------------------------------------------------------------ */
+
+export const getAdminCategories = () =>
+	api
+		.get("/restaurants/categories/manage/")
+		.then((response) => asList(response.data));
+
+export const createCategory = (data) =>
+	api
+		.post("/restaurants/categories/manage/", data)
+		.then((response) => response.data);
+
+export const updateCategory = (id, data) =>
+	api
+		.patch(`/restaurants/categories/manage/${id}/`, data)
+		.then((response) => response.data);
+
+export const deleteCategory = (id) =>
+	api
+		.delete(`/restaurants/categories/manage/${id}/`)
+		.then((response) => response.data);
+
+/* ------------------------------------------------------------------ */
 /* Disponibilidad del personal (administrador y mesero)                */
 /* ------------------------------------------------------------------ */
 

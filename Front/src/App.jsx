@@ -16,6 +16,7 @@ import Addresses from './pages/home/Addresses'
 import ClientOrders from './pages/home/Orders'
 import ClientHistory from './pages/home/History'
 import Emplpoys from './pages/dashboard/admin/Emplpoys'
+import Categories from './pages/dashboard/admin/Categories'
 import Recipes from './pages/dashboard/admin/Recipes'
 import EmployOrders from './pages/dashboard/employ/Orders'
 import Schedule from './pages/dashboard/employ/Schedule'
@@ -230,6 +231,11 @@ function App() {
 							<Route path="/dashboard/empleados" element={
 								<Page>
 									<Emplpoys />
+								</Page>
+							} />
+							<Route path="/dashboard/categorias" element={
+								<Page>
+									<Categories />
 								</Page>
 							} />
 							<Route path="/dashboard/recetas" element={

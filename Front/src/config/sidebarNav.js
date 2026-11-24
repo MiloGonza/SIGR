@@ -8,6 +8,7 @@ import {
 	PackageSearch,
 	ShoppingCart,
 	Store,
+	Tags,
 	Users,
 } from "lucide-react";
 
@@ -60,6 +61,12 @@ export const SIDEBAR_ITEMS = {
 			label: "Turnos",
 			icon: CalendarClock,
 			description: "Programa y organiza los turnos de tu equipo.",
+		},
+		{
+			to: "/dashboard/categorias",
+			label: "Categorías",
+			icon: Tags,
+			description: "Crea y organiza las categorías de tu menú.",
 		},
 		{
 			to: "/dashboard/recetas",

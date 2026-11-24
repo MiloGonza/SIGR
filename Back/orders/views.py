@@ -14,7 +14,7 @@ from rest_framework.response import Response
 from users.models import Address, PaymentMethod, Profile
 from restaurants.models import Dish, Notification
 
-from .models import Cart, CartItem, Order, OrderItem
+from .models import Cart, CartItem, Order, OrderItem, normalize_payment_summary
 from .serializers import (
 	AddCartItemSerializer,
 	CartSerializer,
@@ -61,9 +61,7 @@ def serialize_cart(cart, request):
 def payment_summary(method):
 	if not method:
 		return "Pago contra entrega"
-	if method.ultimos4:
-		return f"{method.marca or method.get_tipo_display()} •••• {method.ultimos4}"
-	return method.get_tipo_display()
+	return normalize_payment_summary(method.get_tipo_display())
 
 
 def user_is_restaurant_staff(user):
@@ -608,15 +606,22 @@ def restaurant_stats(request):
 		.order_by("-total")[:6]
 	]
 
+	metodos_agrupados = {}
+	for row in validos.values("metodo_pago_resumen").annotate(
+		total=Sum("total"), pedidos=Count("id")
+	):
+		metodo = normalize_payment_summary(row["metodo_pago_resumen"])
+		grupo = metodos_agrupados.setdefault(
+			metodo, {"metodo": metodo, "pedidos": 0, "total": 0.0}
+		)
+		grupo["pedidos"] += row["pedidos"]
+		grupo["total"] += float(row["total"] or 0)
+
 	metodos_pago = [
-		{
-			"metodo": row["metodo_pago_resumen"] or "Pago contra entrega",
-			"pedidos": row["pedidos"],
-			"total": round(float(row["total"] or 0), 2),
-		}
-		for row in validos.values("metodo_pago_resumen")
-		.annotate(total=Sum("total"), pedidos=Count("id"))
-		.order_by("-total")[:6]
+		{**row, "total": round(row["total"], 2)}
+		for row in sorted(
+			metodos_agrupados.values(), key=lambda item: item["total"], reverse=True
+		)[:6]
 	]
 
 	conteo_horas = {

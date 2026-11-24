@@ -4,7 +4,7 @@ from restaurants.models import Dish
 from restaurants.serializers import DishSerializer, RestaurantMiniSerializer
 from users.models import Address, PaymentMethod
 
-from .models import Cart, CartItem, Order, OrderItem
+from .models import Cart, CartItem, Order, OrderItem, normalize_payment_summary
 
 
 class CartItemSerializer(serializers.ModelSerializer):
@@ -84,9 +84,10 @@ class OrderSerializer(serializers.ModelSerializer):
 		source="get_tipo_pedido_display", read_only=True
 	)
 	ready_at = serializers.DateTimeField(read_only=True)
-	metodo_pago = serializers.CharField(
-		source="metodo_pago_resumen", read_only=True, default=""
-	)
+	metodo_pago = serializers.SerializerMethodField()
+
+	def get_metodo_pago(self, obj):
+		return normalize_payment_summary(obj.metodo_pago_resumen)
 
 	class Meta:
 		model = Order
