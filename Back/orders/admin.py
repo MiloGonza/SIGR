@@ -1,24 +1,12 @@
 from django.contrib import admin
 
-from .models import Cart, CartItem, Order, OrderItem
+from .models import Order, OrderItem
 
 
 class OrderItemInline(admin.TabularInline):
 	model = OrderItem
 	extra = 0
 	readonly_fields = ["subtotal"]
-
-
-@admin.register(Cart)
-class CartAdmin(admin.ModelAdmin):
-	list_display = ["user", "restaurante", "updated_at"]
-	search_fields = ["user__username", "user__email"]
-
-
-@admin.register(CartItem)
-class CartItemAdmin(admin.ModelAdmin):
-	list_display = ["cart", "dish", "cantidad"]
-	list_filter = ["dish__restaurante"]
 
 
 @admin.register(Order)

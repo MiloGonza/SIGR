@@ -8,7 +8,7 @@ const asList = (data) => (Array.isArray(data) ? data : (data?.results ?? []));
 /* ------------------------------------------------------------------ */
 
 export const getCategories = () =>
-	api.get("/restaurants/categories/").then((response) => response.data);
+	api.get("/categories/").then((response) => response.data);
 
 export const getRestaurants = (params = {}) =>
 	api
@@ -28,24 +28,24 @@ export const getRestaurantMenu = (id) =>
 /* ------------------------------------------------------------------ */
 
 export const getCart = () =>
-	api.get("/orders/cart/").then((response) => response.data);
+	api.get("/carts/").then((response) => response.data);
 
 export const clearCart = () =>
-	api.delete("/orders/cart/").then((response) => response.data);
+	api.delete("/carts/").then((response) => response.data);
 
 export const addCartItem = (dish, cantidad = 1, notas = "") =>
 	api
-		.post("/orders/cart/items/", { dish, cantidad, notas })
+		.post("/carts/items/", { dish, cantidad, notas })
 		.then((response) => response.data);
 
 export const updateCartItem = (id, cantidad) =>
 	api
-		.patch(`/orders/cart/items/${id}/`, { cantidad })
+		.patch(`/carts/items/${id}/`, { cantidad })
 		.then((response) => response.data);
 
 export const removeCartItem = (id) =>
 	api
-		.delete(`/orders/cart/items/${id}/`)
+		.delete(`/carts/items/${id}/`)
 		.then((response) => response.data);
 
 /* ------------------------------------------------------------------ */
@@ -108,22 +108,22 @@ export const deleteRecipe = (id) =>
 
 export const getAdminCategories = () =>
 	api
-		.get("/restaurants/categories/manage/")
+		.get("/categories/manage/")
 		.then((response) => asList(response.data));
 
 export const createCategory = (data) =>
 	api
-		.post("/restaurants/categories/manage/", data)
+		.post("/categories/manage/", data)
 		.then((response) => response.data);
 
 export const updateCategory = (id, data) =>
 	api
-		.patch(`/restaurants/categories/manage/${id}/`, data)
+		.patch(`/categories/manage/${id}/`, data)
 		.then((response) => response.data);
 
 export const deleteCategory = (id) =>
 	api
-		.delete(`/restaurants/categories/manage/${id}/`)
+		.delete(`/categories/manage/${id}/`)
 		.then((response) => response.data);
 
 /* ------------------------------------------------------------------ */
@@ -203,22 +203,22 @@ export const deleteAddress = (id) =>
 
 export const getPaymentMethods = () =>
 	api
-		.get("/users/payment-methods/")
+		.get("/payment-methods/")
 		.then((response) => asList(response.data));
 
 export const createPaymentMethod = (data) =>
 	api
-		.post("/users/payment-methods/", data)
+		.post("/payment-methods/", data)
 		.then((response) => response.data);
 
 export const updatePaymentMethod = (id, data) =>
 	api
-		.patch(`/users/payment-methods/${id}/`, data)
+		.patch(`/payment-methods/${id}/`, data)
 		.then((response) => response.data);
 
 export const deletePaymentMethod = (id) =>
 	api
-		.delete(`/users/payment-methods/${id}/`)
+		.delete(`/payment-methods/${id}/`)
 		.then((response) => response.data);
 
 export { getApiErrorMessage } from "./LoginRegisterApi";

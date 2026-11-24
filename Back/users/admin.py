@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Address, PaymentMethod, Profile
+from .models import Address, Profile
 
 
 @admin.register(Profile)
@@ -17,8 +17,4 @@ class AddressAdmin(admin.ModelAdmin):
 	search_fields = ["alias", "direccion", "user__username"]
 
 
-@admin.register(PaymentMethod)
-class PaymentMethodAdmin(admin.ModelAdmin):
-	list_display = ["alias", "user", "tipo", "marca", "ultimos4", "is_default"]
-	list_filter = ["tipo", "is_default"]
-	search_fields = ["alias", "titular", "user__username"]
+

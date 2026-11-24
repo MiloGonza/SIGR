@@ -12,10 +12,4 @@ urlpatterns = [
 	path("employees/<int:pk>/", views.employee_detail, name="employee-detail"),
 	path("addresses/", views.addresses, name="address-list"),
 	path("addresses/<int:pk>/", views.address_detail, name="address-detail"),
-	path("payment-methods/", views.payment_methods, name="payment-method-list"),
-	path(
-		"payment-methods/<int:pk>/",
-		views.payment_method_detail,
-		name="payment-method-detail",
-	),
 ]

@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from django.db import transaction
-from django.db.models import Count, Q
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
@@ -10,11 +10,11 @@ from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Category, Dish, Notification, Restaurant
+from users.permissions import get_admin_profile, get_staff_profile
+
+from .models import Dish, Notification, Restaurant
 from .serializers import (
-	AdminCategorySerializer,
 	AdminDishSerializer,
-	CategorySerializer,
 	DishSerializer,
 	RestaurantSerializer,
 	StaffDishSerializer,
@@ -28,19 +28,6 @@ class RestaurantCursorPagination(CursorPagination):
 	ordering = "-pk"
 
 
-def get_admin_profile(user):
-	from users.models import Profile
-
-	profile = getattr(user, "profile", None)
-	if (
-		profile
-		and profile.rol == Profile.ADMINISTRADOR
-		and profile.restaurante_id
-	):
-		return profile
-	return None
-
-
 def admin_required_response(request):
 	if get_admin_profile(request.user):
 		return None
@@ -48,21 +35,6 @@ def admin_required_response(request):
 		{"detail": "Solo el administrador de un restaurante puede gestionar el menú."},
 		status=status.HTTP_403_FORBIDDEN,
 	)
-
-
-def get_staff_profile(user):
-	"""Perfil de administrador o mesero que pertenece a una tienda."""
-
-	from users.models import Profile
-
-	profile = getattr(user, "profile", None)
-	if (
-		profile
-		and profile.rol in (Profile.ADMINISTRADOR, Profile.MESERO)
-		and profile.restaurante_id
-	):
-		return profile
-	return None
 
 
 def staff_required_response(request):
@@ -202,62 +174,6 @@ def delete_restaurant(request, pk):
 	restaurant = get_object_or_404(Restaurant, pk=pk)
 	restaurant.delete()
 	return Response(status=status.HTTP_204_NO_CONTENT)
-
-
-@api_view(["GET"])
-@permission_classes([AllowAny])
-def get_categories(request):
-	categories = Category.objects.filter(is_active=True)
-	serializer = CategorySerializer(categories, many=True)
-	return Response(serializer.data)
-
-
-@api_view(["GET", "POST"])
-@permission_classes([IsAuthenticated])
-def admin_categories(request):
-	"""Lista todas las categorías o crea una nueva (solo administrador)."""
-	denied = admin_required_response(request)
-	if denied:
-		return denied
-
-	if request.method == "GET":
-		categories = Category.objects.annotate(
-			platillos_count=Count("platillos")
-		).order_by("orden", "nombre")
-		return Response(
-			AdminCategorySerializer(categories, many=True).data
-		)
-
-	serializer = AdminCategorySerializer(data=request.data)
-	if serializer.is_valid():
-		serializer.save()
-		return Response(serializer.data, status=status.HTTP_201_CREATED)
-	return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-@api_view(["PATCH", "DELETE"])
-@permission_classes([IsAuthenticated])
-def admin_category_detail(request, pk):
-	"""Renombra o elimina una categoría (solo administrador)."""
-	denied = admin_required_response(request)
-	if denied:
-		return denied
-
-	category = get_object_or_404(
-		Category.objects.annotate(platillos_count=Count("platillos")), pk=pk
-	)
-
-	if request.method == "DELETE":
-		category.delete()
-		return Response(status=status.HTTP_204_NO_CONTENT)
-
-	serializer = AdminCategorySerializer(
-		category, data=request.data, partial=True
-	)
-	if serializer.is_valid():
-		serializer.save()
-		return Response(serializer.data)
-	return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["GET"])
