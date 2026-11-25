@@ -29,7 +29,7 @@ jobs:
           .venv/bin/python manage.py makemigrations --check --dry-run
           bash run-tests.sh test --verbosity 2 --noinput
       - run: Back/.venv/bin/ruff check --select E9,F63,F7,F82 Back
-      - run: Back/.venv/bin/pip-audit --disable-pip -r Back/requirements.txt
+      - run: Back/.venv/bin/pip-audit --no-deps -r Back/requirements.txt
       - env:
           DEBUG: 'False'
           SECRET_KEY: ci-only-secret-8f3a91c7d2e64b0a5f9c3d7e1b2a4f6c8d0e9b1a3c5f7d9e2b4a6c8f0

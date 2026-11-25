@@ -8,3 +8,6 @@ PRODUCT.md
 graphify-out
 # Archivos subidos por el backend (imágenes de tiendas y platillos)
 Back/media/
+01-diseno-pipeline.md
+docs/AA2/*.md
+docs/superpowers/
