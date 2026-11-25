@@ -1,19 +1,14 @@
-# React + Vite
+# Frontend de SIGR
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Esta carpeta contiene la SPA de React del proyecto SIGR (Punto y Sazón).
 
-Currently, two official plugins are available:
+La documentación completa —instalación, comandos, roles, rutas, pruebas y despliegue— está en el [README principal del repositorio](../README.md).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Inicio rápido
 
-## React Compiler
+```bash
+pnpm install
+pnpm dev        # http://127.0.0.1:5173
+```
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
-
-Note: This will impact Vite dev & build performances.
-You can also try [the experimental native React Compiler support in plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md#rust-react-compiler) by using `compiler: true` in the plugin options instead of using the Babel plugin.
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+El backend debe estar corriendo en `http://127.0.0.1:8000`. Para cambiar la URL de la API al compilar, copia `.env.example` como `.env.production` y ajusta `VITE_API_URL`.
