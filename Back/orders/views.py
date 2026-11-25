@@ -1,0 +1,561 @@
+from decimal import Decimal
+from datetime import timedelta
+
+from django.db import transaction
+from django.db.models import Count, DecimalField, F, Sum
+from django.db.models.functions import ExtractHour, TruncDate
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
+from carts.models import Cart
+from carts.services import get_cart
+from payment_methods.utils import normalize_payment_summary
+from restaurants.models import Dish, Notification
+from users.permissions import get_admin_profile, is_restaurant_staff
+
+from .models import Order, OrderItem
+from .serializers import (
+	CheckoutSerializer,
+	OrderSerializer,
+	OrderStatusSerializer,
+	StaffOrderSerializer,
+)
+
+
+ACTIVE_ORDER_STATES = (
+	Order.PENDIENTE,
+	Order.CONFIRMADO,
+	Order.PREPARANDO,
+	Order.EN_CAMINO,
+)
+
+ORDER_TRANSITIONS = {
+	Order.PENDIENTE: {Order.CONFIRMADO, Order.PREPARANDO, Order.CANCELADO},
+	Order.CONFIRMADO: {Order.PREPARANDO, Order.CANCELADO},
+	Order.PREPARANDO: {Order.EN_CAMINO, Order.ENTREGADO, Order.CANCELADO},
+	Order.EN_CAMINO: {Order.ENTREGADO, Order.CANCELADO},
+	Order.ENTREGADO: set(),
+	Order.CANCELADO: set(),
+}
+
+
+def payment_summary(method):
+	if not method:
+		return "Pago contra entrega"
+	return normalize_payment_summary(method.get_tipo_display())
+
+
+@api_view(["GET", "POST"])
+@permission_classes([IsAuthenticated])
+def orders(request):
+	"""Listar pedidos del cliente o crear uno a partir del carrito."""
+	if request.method == "GET":
+		queryset = (
+			Order.objects.filter(user=request.user)
+			.select_related("restaurante")
+			.prefetch_related("items")
+		)
+		historial = request.query_params.get("historial")
+		activos = request.query_params.get("activos")
+		if historial in {"1", "true", "si", "sí"}:
+			queryset = queryset.filter(
+				estado__in=[Order.ENTREGADO, Order.CANCELADO]
+			)
+		elif activos in {"1", "true", "si", "sí"}:
+			queryset = queryset.filter(
+				estado__in=[
+					Order.PENDIENTE,
+					Order.CONFIRMADO,
+					Order.PREPARANDO,
+					Order.EN_CAMINO,
+				]
+			)
+		serializer = OrderSerializer(
+			queryset, many=True, context={"request": request}
+		)
+		return Response(serializer.data)
+
+	cart = get_cart(request.user)
+	if not cart.items.exists():
+		return Response(
+			{"detail": "Tu carrito está vacío."},
+			status=status.HTTP_400_BAD_REQUEST,
+		)
+
+	serializer = CheckoutSerializer(data=request.data)
+	if not serializer.is_valid():
+		return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+	tipo_pedido = serializer.validated_data["tipo_pedido"]
+	address = serializer.validated_data.get("address")
+	if tipo_pedido == Order.DOMICILIO:
+		if not address or address.user_id != request.user.id:
+			return Response(
+				{"address": ["Selecciona una dirección de entrega válida."]},
+				status=status.HTTP_400_BAD_REQUEST,
+			)
+		direccion_entrega = address.direccion
+		ciudad_entrega = address.ciudad
+	else:
+		address = None
+		if tipo_pedido == Order.MESA:
+			direccion_entrega = (
+				f"Mesa {serializer.validated_data.get('mesa', '')}"
+			)
+		else:
+			direccion_entrega = "Para llevar"
+		ciudad_entrega = ""
+
+	payment_method = serializer.validated_data.get("payment_method")
+	if payment_method and payment_method.user_id != request.user.id:
+		return Response(
+			{"payment_method": ["El método de pago no pertenece a este usuario."]},
+			status=status.HTTP_400_BAD_REQUEST,
+		)
+
+	with transaction.atomic():
+		cart = (
+			Cart.objects.select_for_update()
+			.prefetch_related("items__dish")
+			.get(pk=cart.pk)
+		)
+		items = list(cart.items.all())
+		if not items:
+			return Response(
+				{"detail": "Tu carrito está vacío."},
+				status=status.HTTP_400_BAD_REQUEST,
+			)
+
+		locked_dishes = {
+			dish.pk: dish
+			for dish in Dish.objects.select_for_update().filter(
+				pk__in=[item.dish_id for item in items]
+			)
+		}
+		for item in items:
+			dish = locked_dishes.get(item.dish_id)
+			if not dish or not dish.is_active or dish.stock <= 0:
+				return Response(
+					{
+						"detail": (
+							f"{item.dish.nombre} ya no está disponible. "
+							"Quítalo del carrito para continuar."
+						)
+					},
+					status=status.HTTP_400_BAD_REQUEST,
+				)
+			if item.cantidad > dish.stock:
+				return Response(
+					{
+						"detail": (
+							f"Solo hay {dish.stock} unidades de {dish.nombre}. "
+							"Ajusta la cantidad en tu carrito."
+						)
+					},
+					status=status.HTTP_400_BAD_REQUEST,
+				)
+
+		subtotal = sum((item.subtotal for item in items), Decimal("0.00"))
+		envio = (
+			cart.envio if tipo_pedido == Order.DOMICILIO else Decimal("0.00")
+		)
+		prep_minutes = max(item.dish.prep_minutes for item in items)
+		if payment_method:
+			metodo_pago_resumen = payment_summary(payment_method)
+		elif tipo_pedido == Order.DOMICILIO:
+			metodo_pago_resumen = "Pago contra entrega"
+		else:
+			metodo_pago_resumen = "Pago en el local"
+
+		order = Order.objects.create(
+			user=request.user,
+			restaurante=cart.restaurante,
+			address=address,
+			direccion_entrega=direccion_entrega,
+			ciudad_entrega=ciudad_entrega,
+			payment_method=payment_method,
+			metodo_pago_resumen=metodo_pago_resumen,
+			tipo_pedido=tipo_pedido,
+			mesa=serializer.validated_data.get("mesa", ""),
+			estado=Order.PENDIENTE,
+			subtotal=subtotal,
+			envio=envio,
+			total=subtotal + envio,
+			notas=serializer.validated_data.get("notas", ""),
+			prep_minutes=prep_minutes,
+		)
+		OrderItem.objects.bulk_create(
+			[
+				OrderItem(
+					order=order,
+					dish=item.dish,
+					nombre=item.dish.nombre,
+					precio_unitario=item.precio_unitario,
+					cantidad=item.cantidad,
+					prep_minutes=item.dish.prep_minutes,
+				)
+				for item in items
+			]
+		)
+		# El stock se reserva al confirmar el pedido y se devuelve al cancelarlo.
+		for item in items:
+			dish = locked_dishes[item.dish_id]
+			dish.stock -= item.cantidad
+			dish.save(update_fields=["stock"])
+		cart.items.all().delete()
+		cart.restaurante = None
+		cart.save(update_fields=["restaurante"])
+
+		total_txt = f"{order.total:,.0f}".replace(",", ".")
+		Notification.objects.create(
+			restaurante=order.restaurante,
+			actor=request.user,
+			tipo=Notification.PEDIDO,
+			mensaje=(
+				f"Nuevo pedido {order.numero} · "
+				f"{order.get_tipo_pedido_display()} · ${total_txt}"
+			),
+		)
+
+	order = (
+		Order.objects.filter(pk=order.pk)
+		.select_related("restaurante")
+		.prefetch_related("items")
+		.first()
+	)
+	return Response(
+		OrderSerializer(order, context={"request": request}).data,
+		status=status.HTTP_201_CREATED,
+	)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def staff_orders(request):
+	"""Pedidos de la tienda del mesero o administrador autenticado."""
+	if not is_restaurant_staff(request.user):
+		return Response(
+			{"detail": "No tienes permiso para consultar los pedidos del local."},
+			status=status.HTTP_403_FORBIDDEN,
+		)
+
+	profile = request.user.profile
+	queryset = (
+		Order.objects.filter(restaurante=profile.restaurante)
+		.select_related("user", "restaurante")
+		.prefetch_related("items")
+	)
+
+	tipo = request.query_params.get("tipo")
+	if tipo in dict(Order.TIPO_CHOICES):
+		queryset = queryset.filter(tipo_pedido=tipo)
+
+	alcance = request.query_params.get("alcance", "activos")
+	if alcance == "historial":
+		queryset = queryset.filter(
+			estado__in=(Order.ENTREGADO, Order.CANCELADO)
+		).order_by("-created_at")[:80]
+	elif alcance == "todos":
+		queryset = queryset.order_by("-created_at")[:200]
+	else:
+		queryset = queryset.filter(estado__in=ACTIVE_ORDER_STATES).order_by(
+			"created_at"
+		)[:120]
+
+	return Response(
+		StaffOrderSerializer(
+			queryset, many=True, context={"request": request}
+		).data
+	)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def order_detail(request, pk):
+	order = get_object_or_404(
+		Order.objects.select_related("restaurante").prefetch_related("items"),
+		pk=pk,
+	)
+	if order.user_id != request.user.id:
+		profile = getattr(request.user, "profile", None)
+		if not (
+			is_restaurant_staff(request.user)
+			and order.restaurante_id == profile.restaurante_id
+		):
+			return Response(status=status.HTTP_404_NOT_FOUND)
+	return Response(OrderSerializer(order, context={"request": request}).data)
+
+
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def update_order_status(request, pk):
+	"""Cambiar el estado de un pedido. Solo meseros/administradores del local."""
+	if not is_restaurant_staff(request.user):
+		return Response(
+			{"detail": "No tienes permiso para cambiar el estado de pedidos."},
+			status=status.HTTP_403_FORBIDDEN,
+		)
+
+	profile = request.user.profile
+	order = get_object_or_404(
+		Order.objects.prefetch_related("items"),
+		pk=pk,
+		restaurante=profile.restaurante,
+	)
+
+	serializer = OrderStatusSerializer(data=request.data)
+	if not serializer.is_valid():
+		return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+	estado = serializer.validated_data["estado"]
+	anterior = order.estado
+	if estado != anterior and estado not in ORDER_TRANSITIONS.get(anterior, set()):
+		return Response(
+			{
+				"detail": (
+					f"No se puede pasar el pedido de "
+					f"«{order.get_estado_display()}» a "
+					f"«{dict(Order.ESTADO_CHOICES)[estado]}»."
+				)
+			},
+			status=status.HTTP_400_BAD_REQUEST,
+		)
+
+	order.estado = estado
+	if estado == Order.PREPARANDO and not order.accepted_at:
+		order.accepted_at = timezone.now()
+	if estado == Order.EN_CAMINO and not order.accepted_at:
+		order.accepted_at = timezone.now()
+	if estado == Order.ENTREGADO:
+		order.delivered_at = timezone.now()
+	with transaction.atomic():
+		order.save(
+			update_fields=["estado", "accepted_at", "delivered_at", "updated_at"]
+		)
+		if estado == Order.CANCELADO and anterior != Order.CANCELADO:
+			for item in order.items.exclude(dish__isnull=True):
+				Dish.objects.filter(pk=item.dish_id).update(
+					stock=F("stock") + item.cantidad
+				)
+	return Response(
+		StaffOrderSerializer(order, context={"request": request}).data
+	)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def restaurant_stats(request):
+	"""Resumen analítico del restaurante para el panel del administrador."""
+	profile = get_admin_profile(request.user)
+	if not profile:
+		return Response(
+			{
+				"detail": (
+					"Solo el administrador de un restaurante puede ver "
+					"las estadísticas."
+				)
+			},
+			status=status.HTTP_403_FORBIDDEN,
+		)
+
+	try:
+		dias = int(request.query_params.get("dias", 30))
+	except (TypeError, ValueError):
+		dias = 30
+	dias = max(7, min(dias, 365))
+
+	hoy = timezone.localdate()
+	desde = hoy - timedelta(days=dias - 1)
+	desde_anterior = desde - timedelta(days=dias)
+	hasta_anterior = desde - timedelta(days=1)
+
+	base = Order.objects.filter(restaurante=profile.restaurante)
+	periodo = base.filter(created_at__date__gte=desde, created_at__date__lte=hoy)
+	anterior = base.filter(
+		created_at__date__gte=desde_anterior,
+		created_at__date__lte=hasta_anterior,
+	)
+	validos = periodo.exclude(estado=Order.CANCELADO)
+	validos_anterior = anterior.exclude(estado=Order.CANCELADO)
+
+	ventas = validos.aggregate(total=Sum("total"))["total"] or Decimal("0.00")
+	ventas_anterior = (
+		validos_anterior.aggregate(total=Sum("total"))["total"] or Decimal("0.00")
+	)
+	pedidos = validos.count()
+	pedidos_anterior = validos_anterior.count()
+	ticket = (ventas / pedidos) if pedidos else Decimal("0.00")
+	ticket_anterior = (
+		(ventas_anterior / pedidos_anterior) if pedidos_anterior else Decimal("0.00")
+	)
+	cancelados = periodo.filter(estado=Order.CANCELADO).count()
+	clientes = validos.values("user_id").distinct().count()
+	activos = base.filter(
+		estado__in=[
+			Order.PENDIENTE,
+			Order.CONFIRMADO,
+			Order.PREPARANDO,
+			Order.EN_CAMINO,
+		]
+	).count()
+	total_con_cancelados = pedidos + cancelados
+
+	por_dia = {
+		row["dia"]: row
+		for row in validos.annotate(dia=TruncDate("created_at"))
+		.values("dia")
+		.annotate(ventas=Sum("total"), pedidos=Count("id"))
+	}
+	ventas_diarias = []
+	for offset in range(dias):
+		fecha = desde + timedelta(days=offset)
+		row = por_dia.get(fecha)
+		ventas_diarias.append(
+			{
+				"fecha": fecha.isoformat(),
+				"ventas": round(float(row["ventas"]), 2) if row else 0.0,
+				"pedidos": row["pedidos"] if row else 0,
+			}
+		)
+
+	etiquetas_estado = dict(Order.ESTADO_CHOICES)
+	conteo_estados = {
+		row["estado"]: row["total"]
+		for row in periodo.values("estado").annotate(total=Count("id"))
+	}
+	estados = [
+		{
+			"estado": valor,
+			"label": etiqueta,
+			"total": conteo_estados.get(valor, 0),
+		}
+		for valor, etiqueta in Order.ESTADO_CHOICES
+	]
+
+	items = OrderItem.objects.filter(
+		order__restaurante=profile.restaurante,
+		order__created_at__date__gte=desde,
+		order__created_at__date__lte=hoy,
+	).exclude(order__estado=Order.CANCELADO)
+
+	importe = Sum(
+		F("precio_unitario") * F("cantidad"),
+		output_field=DecimalField(max_digits=12, decimal_places=2),
+	)
+
+	top_platillos = [
+		{
+			"nombre": row["nombre"],
+			"unidades": row["unidades"],
+			"ingresos": round(float(row["ingresos"] or 0), 2),
+		}
+		for row in items.values("nombre")
+		.annotate(unidades=Sum("cantidad"), ingresos=importe)
+		.order_by("-unidades", "-ingresos")[:6]
+	]
+
+	categorias = [
+		{
+			"nombre": row["dish__categoria__nombre"] or "Sin categoría",
+			"unidades": row["unidades"],
+			"total": round(float(row["total"] or 0), 2),
+		}
+		for row in items.filter(dish__isnull=False)
+		.values("dish__categoria__nombre")
+		.annotate(unidades=Sum("cantidad"), total=importe)
+		.order_by("-total")[:6]
+	]
+
+	metodos_agrupados = {}
+	for row in validos.values("metodo_pago_resumen").annotate(
+		total=Sum("total"), pedidos=Count("id")
+	):
+		metodo = normalize_payment_summary(row["metodo_pago_resumen"])
+		grupo = metodos_agrupados.setdefault(
+			metodo, {"metodo": metodo, "pedidos": 0, "total": 0.0}
+		)
+		grupo["pedidos"] += row["pedidos"]
+		grupo["total"] += float(row["total"] or 0)
+
+	metodos_pago = [
+		{**row, "total": round(row["total"], 2)}
+		for row in sorted(
+			metodos_agrupados.values(), key=lambda item: item["total"], reverse=True
+		)[:6]
+	]
+
+	conteo_horas = {
+		row["hora"]: row["pedidos"]
+		for row in validos.annotate(hora=ExtractHour("created_at"))
+		.values("hora")
+		.annotate(pedidos=Count("id"))
+	}
+	por_hora = [
+		{"hora": hora, "pedidos": conteo_horas.get(hora, 0)} for hora in range(24)
+	]
+
+	pedidos_recientes = [
+		{
+			"id": str(order.id),
+			"numero": order.numero,
+			"cliente": order.user.get_full_name() or order.user.username,
+			"total": round(float(order.total), 2),
+			"estado": order.estado,
+			"estado_label": order.get_estado_display(),
+			"items": order.items_count,
+			"created_at": order.created_at.isoformat(),
+		}
+		for order in base.select_related("user")
+		.annotate(items_count=Count("items"))
+		.order_by("-created_at")[:6]
+	]
+
+	stock_bajo = [
+		{
+			"id": dish.id,
+			"nombre": dish.nombre,
+			"stock": dish.stock,
+			"is_active": dish.is_active,
+		}
+		for dish in Dish.objects.filter(
+			restaurante=profile.restaurante, stock__lte=5
+		).order_by("stock", "nombre")[:6]
+	]
+
+	return Response(
+		{
+			"periodo": {
+				"dias": dias,
+				"desde": desde.isoformat(),
+				"hasta": hoy.isoformat(),
+			},
+			"resumen": {
+				"ventas": round(float(ventas), 2),
+				"ventas_anterior": round(float(ventas_anterior), 2),
+				"pedidos": pedidos,
+				"pedidos_anterior": pedidos_anterior,
+				"ticket_promedio": round(float(ticket), 2),
+				"ticket_anterior": round(float(ticket_anterior), 2),
+				"cancelados": cancelados,
+				"clientes": clientes,
+				"activos": activos,
+				"tasa_cancelacion": (
+					round((cancelados / total_con_cancelados) * 100, 1)
+					if total_con_cancelados
+					else 0.0
+				),
+			},
+			"ventas_diarias": ventas_diarias,
+			"estados": estados,
+			"top_platillos": top_platillos,
+			"categorias": categorias,
+			"metodos_pago": metodos_pago,
+			"por_hora": por_hora,
+			"pedidos_recientes": pedidos_recientes,
+			"stock_bajo": stock_bajo,
+		}
+	)
