@@ -27,7 +27,9 @@ urlpatterns = [
     path('orders/', include('orders.urls')),
     path('carts/', include('carts.urls')),
     path('payment-methods/', include('payment_methods.urls')),
+    path('reservations/', include('reservations.urls')),
     path('shifts/', include('shifts.urls')),
+    path('tables/', include('tables.urls')),
 ]
 
 if settings.DEBUG:
