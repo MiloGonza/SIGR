@@ -1,0 +1,91 @@
+name: CI/CD simulado
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+      - run: python -m venv Back/.venv
+      - run: Back/.venv/bin/pip install -r Back/requirements.txt pip-audit ruff
+      - env:
+          DB_NAME: sigr_ci
+          DB_USER: sigr_ci
+          DB_PASSWORD: ci-only
+          DB_HOST: 127.0.0.1
+          DB_PORT: '5432'
+        run: |
+          cd Back
+          .venv/bin/python manage.py check
+          .venv/bin/python manage.py makemigrations --check --dry-run
+          bash run-tests.sh test --verbosity 2 --noinput
+      - run: Back/.venv/bin/ruff check --select E9,F63,F7,F82 Back
+      - run: Back/.venv/bin/pip-audit --disable-pip -r Back/requirements.txt
+      - env:
+          DEBUG: 'False'
+          SECRET_KEY: ci-only-secret-8f3a91c7d2e64b0a5f9c3d7e1b2a4f6c8d0e9b1a3c5f7d9e2b4a6c8f0
+          ALLOWED_HOSTS: ci.example.invalid
+          SECURE_SSL_REDIRECT: 'True'
+          SESSION_COOKIE_SECURE: 'True'
+          CSRF_COOKIE_SECURE: 'True'
+          SECURE_HSTS_SECONDS: '31536000'
+          SECURE_HSTS_INCLUDE_SUBDOMAINS: 'True'
+          SECURE_HSTS_PRELOAD: 'True'
+        run: Back/.venv/bin/python manage.py check --deploy
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: Front/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: Front
+      - run: pnpm lint
+        working-directory: Front
+      - run: pnpm audit --audit-level=high
+        working-directory: Front
+      - env:
+          VITE_API_URL: ${{ vars.VITE_API_URL || 'http://127.0.0.1:8000' }}
+        run: pnpm build
+        working-directory: Front
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: Front/dist
+
+  despliegue-simulado:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist
+      - run: |
+          echo "Desplegando a staging simulado..."
+          echo "Artefactos recibidos:"
+          find dist -maxdepth 1 -type f | sort
+          echo "SIMULADO: gunicorn config.wsgi:application"
+          echo "SIMULADO: nginx sirve /static/ y /media/"
+      - run: |
+          echo "### Resultado" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Backend: OK" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Frontend: OK" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Staging: simulado" >> "$GITHUB_STEP_SUMMARY"
