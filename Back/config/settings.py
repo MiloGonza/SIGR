@@ -25,12 +25,17 @@ environ.Env.read_env(BASE_DIR / ".env")
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-w*5w@k@+e1e6fc0^du)%!+8sc^uj%=*i_%k(3!#if1=-pxb$@c'
+SECRET_KEY = env(
+    "SECRET_KEY",
+    default="django-insecure-w*5w@k@+e1e6fc0^du)%!+8sc^uj%=*i_%k(3!#if1=-pxb$@c",
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env.bool("DEBUG", default=True)
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = env.list(
+    "ALLOWED_HOSTS", default=["localhost", "127.0.0.1"]
+)
 
 
 # Application definition
@@ -137,6 +142,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Archivos subidos (imágenes de tiendas y platillos)
 MEDIA_URL = '/media/'
@@ -154,22 +160,41 @@ REST_FRAMEWORK = {
 }
 
 
-# CORS: permitir el frontend de Vite en desarrollo. Vite cambia de puerto si
-# el 5173 está ocupado (5174, 5175...), así que aceptamos cualquier puerto local.
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
+# CORS: en desarrollo se aceptan los puertos locales de Vite. En producción
+# define CORS_ALLOWED_ORIGINS con el dominio real del frontend.
+CORS_ALLOWED_ORIGINS = env.list(
+    "CORS_ALLOWED_ORIGINS",
+    default=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+)
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://(localhost|127\.0\.0\.1)(:\d+)?$",
 ]
+
+# Dominios confiables para el admin y la autenticación por sesión en producción.
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+SECURE_PROXY_SSL_HEADER = (
+    ("HTTP_X_FORWARDED_PROTO", "https")
+    if env.bool("TRUST_PROXY_SSL_HEADER", default=False)
+    else None
+)
+SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=False)
+SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=False)
+CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=False)
+SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=0)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool(
+    "SECURE_HSTS_INCLUDE_SUBDOMAINS", default=False
+)
+SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=False)
 
 
 # Email
 # https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
 
-MAILERS = {
-    'default': {
-        'BACKEND': 'django.core.mail.backends.console.EmailBackend',
-    },
-}
+EMAIL_BACKEND = env(
+    "EMAIL_BACKEND",
+    default="django.core.mail.backends.console.EmailBackend",
+)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@sigr.local")
