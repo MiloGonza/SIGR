@@ -31,6 +31,11 @@ jobs:
       - run: Back/.venv/bin/ruff check --select E9,F63,F7,F82 Back
       - run: Back/.venv/bin/pip-audit --no-deps -r Back/requirements.txt
       - env:
+          DB_NAME: sigr_ci
+          DB_USER: sigr_ci
+          DB_PASSWORD: ci-only
+          DB_HOST: 127.0.0.1
+          DB_PORT: '5432'
           DEBUG: 'False'
           SECRET_KEY: ci-only-secret-8f3a91c7d2e64b0a5f9c3d7e1b2a4f6c8d0e9b1a3c5f7d9e2b4a6c8f0
           ALLOWED_HOSTS: ci.example.invalid
@@ -40,7 +45,9 @@ jobs:
           SECURE_HSTS_SECONDS: '31536000'
           SECURE_HSTS_INCLUDE_SUBDOMAINS: 'True'
           SECURE_HSTS_PRELOAD: 'True'
-        run: Back/.venv/bin/python manage.py check --deploy
+        run: |
+          cd Back
+          .venv/bin/python manage.py check --deploy
 
   frontend:
     runs-on: ubuntu-latest

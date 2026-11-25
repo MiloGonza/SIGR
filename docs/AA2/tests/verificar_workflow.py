@@ -24,6 +24,15 @@ for cmd in [
 for key in ["DB_NAME", "DB_USER", "DB_PASSWORD", "DEBUG", "SECRET_KEY"]:
     assert key in backend, key
 
+deployStep = next(
+    step
+    for step in jobs["backend"]["steps"]
+    if "check --deploy" in str(step.get("run", ""))
+)
+assert "cd Back" in deployStep["run"]
+for key in ["DB_NAME", "DB_USER", "DB_PASSWORD", "DB_HOST", "DB_PORT"]:
+    assert key in deployStep["env"], key
+
 frontend = str(jobs["frontend"])
 for cmd in ["pnpm/action-setup@v4", "'version': 12", "pnpm install --frozen-lockfile", "pnpm lint", "pnpm audit", "pnpm build"]:
     assert cmd in frontend, cmd
