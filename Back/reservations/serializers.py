@@ -7,12 +7,19 @@ from .models import TableReservation
 
 
 class TableReservationSerializer(serializers.ModelSerializer):
+	restaurante_nombre = serializers.CharField(
+		source="restaurante.nombre", read_only=True
+	)
+	mesa_nombre = serializers.CharField(source="mesa.nombre", read_only=True)
+
 	class Meta:
 		model = TableReservation
 		fields = [
 			"id",
 			"restaurante",
+			"restaurante_nombre",
 			"mesa",
+			"mesa_nombre",
 			"fecha",
 			"hora",
 			"personas",

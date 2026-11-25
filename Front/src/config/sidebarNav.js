@@ -8,6 +8,7 @@ import {
 	PackageSearch,
 	ShoppingCart,
 	Store,
+	Table2,
 	Tags,
 	Users,
 } from "lucide-react";
@@ -42,6 +43,12 @@ export const SIDEBAR_ITEMS = {
 			icon: History,
 			description: "Consulta los pedidos que has realizado anteriormente.",
 		},
+		{
+			to: "/home/reservas",
+			label: "Reservas",
+			icon: CalendarClock,
+			description: "Reserva una mesa y consulta el estado de tus solicitudes.",
+		},
 	],
 	administrador: [
 		{
@@ -75,6 +82,12 @@ export const SIDEBAR_ITEMS = {
 			description: "Organiza las recetas y preparaciones de tu menú.",
 		},
 		{
+			to: "/dashboard/mesas",
+			label: "Mesas",
+			icon: Table2,
+			description: "Administra las mesas y su capacidad.",
+		},
+		{
 			to: "/dashboard/notificaciones",
 			label: "Notificaciones",
 			icon: Bell,
@@ -93,6 +106,12 @@ export const SIDEBAR_ITEMS = {
 			label: "Turnos",
 			icon: CalendarClock,
 			description: "Consulta y organiza tus turnos de trabajo.",
+		},
+		{
+			to: "/dashboard/reservas",
+			label: "Reservas",
+			icon: CalendarClock,
+			description: "Administra las reservas de mesas de tu restaurante.",
 		},
 		{
 			to: "/dashboard/disponibilidad",

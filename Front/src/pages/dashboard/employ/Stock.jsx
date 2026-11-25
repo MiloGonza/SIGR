@@ -14,6 +14,7 @@ import {
 	Plus,
 	RefreshCw,
 	Search,
+	Table2,
 	Tag,
 	X,
 } from "lucide-react";
@@ -24,6 +25,8 @@ import {
 } from "../../../Api/clientApi";
 import useStore from "../../../store/useStore";
 import { formatCOP } from "../../../utils/format";
+import { normalizeRole } from "../../../config/sidebarNav";
+import StaffTablesSection from "../../../components/tables/StaffTablesSection";
 import Dashboard from "../Dashboard";
 
 const FILTERS = [
@@ -284,12 +287,14 @@ function AvailabilitySkeleton() {
 
 function Stock() {
 	const { user } = useStore();
+	const canManageTables = normalizeRole(user?.rol) === "mesero";
 	const [dishes, setDishes] = useState([]);
 	const [loading, setLoading] = useState(Boolean(user));
 	const [error, setError] = useState("");
 	const [notice, setNotice] = useState("");
 	const [query, setQuery] = useState("");
 	const [filter, setFilter] = useState("todos");
+	const [tab, setTab] = useState("platillos");
 	const [busyId, setBusyId] = useState(null);
 	const [reloadKey, setReloadKey] = useState(0);
 	const [lastUpdated, setLastUpdated] = useState(null);
@@ -474,6 +479,58 @@ function Stock() {
 					</div>
 				</motion.div>
 
+				{canManageTables && (
+					<div
+						role="tablist"
+					aria-label="Secciones de disponibilidad"
+					className="inline-flex w-full max-w-md gap-1 rounded-xl border border-border bg-surface p-1"
+				>
+					{[
+						{
+							id: "platillos",
+							label: "Platillos",
+							icon: PackageSearch,
+						},
+						{ id: "mesas", label: "Mesas", icon: Table2 },
+					].map(({ id, label, icon: Icon }) => {
+						const active = tab === id;
+						return (
+							<button
+								key={id}
+								type="button"
+								role="tab"
+								id={`tab-${id}`}
+								aria-selected={active}
+								aria-controls={`panel-${id}`}
+								onClick={() => setTab(id)}
+								className={`relative flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+									active
+										? "text-accent-foreground"
+										: "text-muted hover:text-foreground"
+								}`}
+							>
+								{active && (
+									<motion.span
+										layoutId="availability-tab"
+										className="absolute inset-0 rounded-lg bg-accent"
+										transition={{ type: "spring", stiffness: 380, damping: 32 }}
+									/>
+								)}
+								<Icon className="relative size-4" />
+								<span className="relative">{label}</span>
+							</button>
+						);
+					})}
+					</div>
+				)}
+
+				{tab === "platillos" && (
+					<div
+						role="tabpanel"
+						id="panel-platillos"
+						aria-labelledby="tab-platillos"
+						className="space-y-6"
+					>
 				<div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
 					{[
 						{
@@ -655,6 +712,19 @@ function Stock() {
 						)}
 					</div>
 				</motion.div>
+					</div>
+				)}
+
+				{tab === "mesas" && (
+					<div
+						role="tabpanel"
+						id="panel-mesas"
+						aria-labelledby="tab-mesas"
+						className="space-y-6"
+					>
+						<StaffTablesSection />
+					</div>
+				)}
 
 				<motion.p
 					initial={{ opacity: 0 }}

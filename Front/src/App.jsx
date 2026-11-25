@@ -15,9 +15,12 @@ import Payments from './pages/home/Payments'
 import Addresses from './pages/home/Addresses'
 import ClientOrders from './pages/home/Orders'
 import ClientHistory from './pages/home/History'
+import ClientReservations from './pages/home/Reservations'
 import Emplpoys from './pages/dashboard/admin/Emplpoys'
 import Categories from './pages/dashboard/admin/Categories'
 import Recipes from './pages/dashboard/admin/Recipes'
+import Tables from './pages/dashboard/admin/Tables'
+import Reservations from './pages/dashboard/employ/Reservations'
 import EmployOrders from './pages/dashboard/employ/Orders'
 import Schedule from './pages/dashboard/employ/Schedule'
 import Stock from './pages/dashboard/employ/Stock'
@@ -212,6 +215,11 @@ function App() {
 									<ClientHistory />
 								</Page>
 							} />
+							<Route path="/home/reservas" element={
+								<Page>
+									<ClientReservations />
+								</Page>
+							} />
 						</Route>
 
 						<Route element={<RequireAuth roles={["administrador"]} />}>
@@ -241,6 +249,19 @@ function App() {
 							<Route path="/dashboard/recetas" element={
 								<Page>
 									<Recipes />
+								</Page>
+							} />
+							<Route path="/dashboard/mesas" element={
+								<Page>
+									<Tables />
+								</Page>
+							} />
+						</Route>
+
+						<Route element={<RequireAuth roles={["mesero"]} />}>
+							<Route path="/dashboard/reservas" element={
+								<Page>
+									<Reservations />
 								</Page>
 							} />
 						</Route>

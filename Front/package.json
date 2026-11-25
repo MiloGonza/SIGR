@@ -5,9 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "start": "vite preview --host",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "makemigrations": "bash ../Back/run.sh makemigrations",
+    "migrate": "bash ../Back/run.sh migrate",
+    "test": "bash ../Back/run-tests.sh test --verbosity 2 --noinput"
   },
   "dependencies": {
     "@heroui/react": "^3.2.7",

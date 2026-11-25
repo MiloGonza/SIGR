@@ -9,11 +9,13 @@ class TableReservation(models.Model):
 
 	PENDIENTE = "pendiente"
 	ACCEPTADA = "aceptada"
+	COMPLETADA = "completada"
 	CANCELADA = "cancelada"
 
 	ESTADO_CHOICES = [
 		(PENDIENTE, "Pendiente"),
 		(ACCEPTADA, "Aceptada"),
+		(COMPLETADA, "Completada"),
 		(CANCELADA, "Cancelada"),
 	]
 

@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('reservations', '0001_initial'),
-        ('tables', '0002_alter_table_id'),
+        ('tables', '0001_initial'),
     ]
 
     operations = [

@@ -25,5 +25,21 @@ def get_staff_profile(user):
 	return None
 
 
+def get_waiter_profile(user):
+	"""Perfil de mesero que pertenece a una tienda.
+
+	Las reservas las administra el personal de sala (mesero); el administrador
+	del restaurante no debe aceptarlas ni cancelarlas.
+	"""
+	profile = getattr(user, "profile", None)
+	if (
+		profile
+		and profile.rol == Profile.MESERO
+		and profile.restaurante_id
+	):
+		return profile
+	return None
+
+
 def is_restaurant_staff(user):
 	return get_staff_profile(user) is not None

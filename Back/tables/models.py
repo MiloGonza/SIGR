@@ -4,6 +4,9 @@ from django.db import models
 
 
 class Table(models.Model):
+	id = models.UUIDField(
+		default=uuid.uuid4, editable=False, primary_key=True, serialize=False
+	)
 	restaurante = models.ForeignKey(
 		"restaurants.Restaurant",
 		on_delete=models.CASCADE,

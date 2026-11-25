@@ -221,4 +221,53 @@ export const deletePaymentMethod = (id) =>
 		.delete(`/payment-methods/${id}/`)
 		.then((response) => response.data);
 
+/* ------------------------------------------------------------------ */
+/* Mesas (administrador)                                              */
+/* ------------------------------------------------------------------ */
+
+export const getAdminTables = () =>
+	api.get("/tables/").then((response) => asList(response.data));
+
+export const getStaffTables = () =>
+	api.get("/tables/staff/").then((response) => asList(response.data));
+
+export const createTable = (data) =>
+	api.post("/tables/", data).then((response) => response.data);
+
+export const updateTable = (id, data) =>
+	api.patch(`/tables/${id}/`, data).then((response) => response.data);
+
+export const deleteTable = (id) =>
+	api.delete(`/tables/${id}/`).then((response) => response.data);
+
+/* ------------------------------------------------------------------ */
+/* Reservas de mesa (administrador, mesero y cliente)                  */
+/* ------------------------------------------------------------------ */
+
+export const getPublicTables = (restaurante) =>
+	api
+		.get("/tables/public/", { params: { restaurante } })
+		.then((response) => asList(response.data));
+
+export const getReservations = () =>
+	api.get("/reservations/").then((response) => asList(response.data));
+
+export const createReservation = (data) =>
+	api.post("/reservations/", data).then((response) => response.data);
+
+export const acceptReservation = (id) =>
+	api
+		.post(`/reservations/${id}/accept/`, {})
+		.then((response) => response.data);
+
+export const completeReservation = (id) =>
+	api
+		.post(`/reservations/${id}/complete/`, {})
+		.then((response) => response.data);
+
+export const cancelReservation = (id) =>
+	api.delete(`/reservations/${id}/cancel/`).then((response) => response.data);
+
+export const removeReservation = cancelReservation;
+
 export { getApiErrorMessage } from "./LoginRegisterApi";

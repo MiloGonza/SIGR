@@ -19,4 +19,9 @@ urlpatterns = [
 		views.accept_table_reservation,
 		name="table-reservation-accept",
 	),
+	path(
+		"<uuid:pk>/complete/",
+		views.complete_table_reservation,
+		name="table-reservation-complete",
+	),
 ]
